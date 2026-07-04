@@ -45,17 +45,41 @@ auth-server/                        ← repo root (this project)
     main/
       java/io/github/pratikpanchal22/authserver/
         AuthServerApplication.java
+        domain/
+          AuthType.java             ← enum: LOCAL | FEDERATED
+          User.java                 ← users table
+          IdentityProvider.java     ← identity_providers table
+          MfaRecoveryCode.java      ← mfa_recovery_codes table
+          AuditEvent.java           ← audit_events table
+        repository/
+          UserRepository.java
+          IdentityProviderRepository.java
+          MfaRecoveryCodeRepository.java
+          AuditEventRepository.java
       resources/
         application.properties            ← common config (port 9000, actuator)
-        application-local.properties      ← local dev (Docker PostgreSQL)
+        application-local.properties      ← local dev (Docker PostgreSQL + Flyway)
         application-dev.properties        ← shared dev environment
         application-prod.properties       ← production (all values from env vars)
+        db/migration/
+          V1__create_users.sql
+          V2__create_user_roles.sql
+          V3__create_identity_providers.sql
+          V4__create_mfa_recovery_codes.sql
+          V5__create_audit_events.sql
+          V6__create_indexes.sql
+          V7__seed_admin_user.sql           ← admin@localhost / changeme
     test/
       java/io/github/pratikpanchal22/authserver/
-        AuthServerApplicationTests.java   ← context loads test
-        HealthEndpointTest.java           ← /actuator/health tests
+        AuthServerApplicationTests.java     ← context loads (H2)
+        HealthEndpointTest.java             ← /actuator/health (H2)
+        repository/
+          UserRepositoryTest.java           ← Testcontainers PostgreSQL
+          IdentityProviderRepositoryTest.java
+          MfaRecoveryCodeRepositoryTest.java
+          AuditEventRepositoryTest.java
       resources/
-        application-test.properties       ← test overrides (Flyway disabled)
+        application-test.properties         ← H2 datasource, Flyway disabled
   compose.yaml      ← PostgreSQL 15 + auth-server for local dev
   Dockerfile        ← multi-stage build (Maven → JRE image)
   .env.example      ← template for local secrets (copy to .env)
@@ -136,6 +160,23 @@ curl http://localhost:9000/actuator/info
 # Expected: {"app":{"name":"Auth Server","version":"0.0.1-SNAPSHOT"}}
 ```
 
+Flyway runs automatically on startup and applies all migrations. You can verify the schema was created:
+
+```bash
+docker exec -it $(docker compose ps -q postgresql) psql -U auth_user -d auth_db -c '\dt'
+# Expected: users, user_roles, identity_providers, mfa_recovery_codes, audit_events
+```
+
+A seed admin user is created by `V7__seed_admin_user.sql`:
+
+| Field | Value |
+|---|---|
+| Email | `admin@localhost` |
+| Password | `changeme` |
+| Roles | `ADMIN` |
+
+> **Change this password immediately** after first login in production.
+
 **Stopping**
 
 ```bash
@@ -171,7 +212,7 @@ curl http://localhost:9000/actuator/health
 
 ## Running Tests
 
-Tests require no database — Flyway is disabled in the test profile.
+Unit tests run against H2 (no Docker required). Repository integration tests spin up a real PostgreSQL container via Testcontainers — Docker Desktop must be running.
 
 ```bash
 mvn test
@@ -180,22 +221,33 @@ mvn test
 Expected output:
 
 ```
-Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 21, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
-### What the tests cover (PR-01)
+Run only the unit tests (no Docker):
 
-| Test | Class | Verifies |
+```bash
+mvn test -Dgroups=''
+# or just run the two unit test classes directly:
+mvn test -Dtest="AuthServerApplicationTests,HealthEndpointTest"
+```
+
+### What the tests cover (PR-02)
+
+| Test Class | Tests | Verifies |
 |---|---|---|
-| `contextLoads` | `AuthServerApplicationTests` | Spring context starts without errors |
-| `healthEndpointReturns200` | `HealthEndpointTest` | `GET /actuator/health` returns HTTP 200 |
-| `healthResponseContainsStatusUp` | `HealthEndpointTest` | Response body contains `"UP"` |
+| `AuthServerApplicationTests` | 1 | Spring context loads with JPA + Flyway on H2 |
+| `HealthEndpointTest` | 2 | `/actuator/health` returns 200 with `"UP"` |
+| `UserRepositoryTest` | 7 | Save, findByEmail, existsByEmail, delete, roles |
+| `IdentityProviderRepositoryTest` | 4 | Save, findByName, findByEnabledTrue |
+| `MfaRecoveryCodeRepositoryTest` | 3 | Save, findByUserIdAndUsedFalse, countByUserIdAndUsedFalse |
+| `AuditEventRepositoryTest` | 4 | Save (with and without userId), findByUserId, findByEventType |
 
 Run a single test class:
 
 ```bash
-mvn test -Dtest=HealthEndpointTest
+mvn test -Dtest=UserRepositoryTest
 ```
 
 ---
@@ -353,4 +405,31 @@ Make sure you're running `mvn` from the repo root (same directory as `pom.xml`):
 ```bash
 pwd   # should end in /auth-server
 mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+---
+
+### Flyway checksum mismatch on startup
+
+```
+Migration checksum mismatch for migration version X
+```
+
+This means a migration file was modified after it was applied. Never edit applied migrations — add a new one instead. To repair the local dev database (safe in development only):
+
+```bash
+docker compose down -v   # wipe volume → fresh DB on next start
+docker compose up postgresql -d
+mvn spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+---
+
+### Repository integration tests skipped (no Docker)
+
+If Testcontainers cannot find a Docker daemon, the integration tests are skipped (not failed) because `@Testcontainers(disabledWithoutDocker = true)` is set. Start Docker Desktop and re-run:
+
+```bash
+open -a Docker
+mvn test
 ```
