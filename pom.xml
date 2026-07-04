@@ -55,6 +55,12 @@
             <artifactId>spring-boot-starter-oauth2-authorization-server</artifactId>
         </dependency>
 
+        <!-- OAuth2 Client — upstream IDP federation (PR-07) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+        </dependency>
+
         <!-- Spring Security (pulled transitively by auth server, explicit for clarity) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

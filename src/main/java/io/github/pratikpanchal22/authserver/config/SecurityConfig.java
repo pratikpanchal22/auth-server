@@ -1,5 +1,6 @@
 package io.github.pratikpanchal22.authserver.config;
 
+import io.github.pratikpanchal22.authserver.service.JitOidcUserService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -12,6 +13,12 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private final JitOidcUserService jitOidcUserService;
+
+    public SecurityConfig(JitOidcUserService jitOidcUserService) {
+        this.jitOidcUserService = jitOidcUserService;
+    }
 
     @Bean
     @Order(2)
@@ -30,6 +37,11 @@ public class SecurityConfig {
                 .defaultSuccessUrl("/", true)
                 .failureUrl("/login?error")
                 .permitAll()
+            )
+            .oauth2Login(oauth2 -> oauth2
+                .loginPage("/login")
+                .defaultSuccessUrl("/", true)
+                .userInfoEndpoint(info -> info.oidcUserService(jitOidcUserService))
             )
             .logout(logout -> logout
                 .logoutSuccessUrl("/login?logout")
