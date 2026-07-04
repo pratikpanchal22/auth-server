@@ -4,8 +4,21 @@
 
 - `ClientDataLoader` now seeds **three** clients on startup (non-prod): `storefront`, `calibre-web`, `drawio`
 - Each client is checked independently (no early-return on storefront present)
-- `compose.yaml` gains `calibre-web` and `drawio` services for local testing
 - `RegisteredClientRepositoryTest` extended with assertions for both new clients
+
+---
+
+## Repo layout
+
+Each client app lives in its own top-level directory, mirroring the storefront pattern:
+
+```
+nthNode/
+  auth-server/      ← this repo
+  store-front/
+  calibre-web/      ← fork of janeczku/calibre-web
+  drawio/           ← docker-compose.yml only (no source changes needed)
+```
 
 ---
 
@@ -18,108 +31,83 @@
 
 Both use `client_secret_basic` auth, `authorization_code + refresh_token` grants, and refresh token rotation (reuseRefreshTokens=false).
 
-> **Note on redirect URIs**: the exact callback path each app sends during the OAuth2 flow must be verified on first test run. Spring AS will return `redirect_uri_mismatch` if the stored URI doesn't match exactly. Add additional URIs to `ClientDataLoader` (dev) or update the `oauth2_registered_client` row directly (prod) if needed.
+> **Note on redirect URIs**: the exact callback path each app sends must be verified on first test run. Spring AS logs `redirect_uri_mismatch` if the stored URI doesn't match. Add the correct URI to `ClientDataLoader` (dev) or the `oauth2_registered_client` row directly (prod).
 
 ---
 
 ## Local testing setup
 
-### Start the full stack
+Each service starts independently. Start the auth server first.
+
+### Auth server
 
 ```bash
-# From auth-server repo root
-docker compose up
+cd auth-server
+docker compose up    # postgresql + auth-server on port 9000
 ```
 
-This starts:
-- `postgresql` (port 5432)
-- `auth-server` (port 9000)
-- `calibre-web` (port 8083)
-- `drawio` (port 8888)
-
-### Calibre-Web first-run setup
-
-Calibre-Web requires a Calibre library on first startup. Create a placeholder books directory:
+### Draw.io
 
 ```bash
-mkdir -p books
+cd drawio
+docker compose up    # draw.io on port 8888
 ```
 
-On first visit to `http://localhost:8083`, Calibre-Web will ask you to configure a books location. Point it to `/books`.
+Navigate to `http://localhost:8888` — Draw.io redirects to the Auth Server login immediately.
 
-**Default admin credentials:** `admin` / `admin123` (change immediately)
+`host.docker.internal` in the compose file lets the container reach the Auth Server on port 9000 from inside Docker.
 
-### Configure Calibre-Web OIDC
+> If Draw.io sends a different redirect URI than `http://localhost:8888/` (visible in Auth Server logs as `redirect_uri_mismatch`), add the correct URI to `ClientDataLoader.seedDrawio()`.
 
-1. Log in to Calibre-Web with the local admin account
-2. Go to **Admin → Edit Basic Configuration → Feature Configuration**
-3. Enable **Allow OAuth**
-4. Go to **Admin → OAuth Providers** → add a new provider:
+### Calibre-Web
+
+Calibre-Web is a fork of `janeczku/calibre-web`. Build and run from that repo's directory. A `docker-compose.yml` will live there.
+
+On first visit to `http://localhost:8083`, point it at a books directory.
+
+**Configure OIDC** (one-time, via admin UI):
+1. **Admin → Edit Basic Configuration → Feature Configuration** → enable **Allow OAuth** → Save
+2. **Admin → OAuth Providers** → add provider:
    - **Provider name**: `nthnode`
    - **Client ID**: `calibre-web`
    - **Client Secret**: `calibre-web-secret`
    - **Authorization URL**: `http://localhost:9000/oauth2/authorize`
    - **Token URL**: `http://localhost:9000/oauth2/token`
    - **Userinfo URL**: `http://localhost:9000/userinfo`
-5. Save and note the **callback URL** Calibre-Web displays — update `ClientDataLoader.seedCalibreWeb()` if it differs from `http://localhost:8083/login`
+3. Save — note the **Redirect URI** shown. Update `ClientDataLoader.seedCalibreWeb()` if it differs from `http://localhost:8083/login`.
 
-### Verify Calibre-Web SSO
-
-1. Log out of Calibre-Web
-2. Click the provider login button on the login page
-3. Browser redirects to Auth Server login
-4. Sign in with your nthNode account
-5. Should return to Calibre-Web authenticated
-
-### Draw.io OIDC
-
-Draw.io self-hosted receives OIDC config via environment variables in `compose.yaml`:
-
-```yaml
-DRAWIO_OIDC_ENABLED=1
-DRAWIO_OIDC_ISSUER=http://host.docker.internal:9000
-DRAWIO_OIDC_CLIENT_ID=drawio
-DRAWIO_OIDC_CLIENT_SECRET=drawio-secret
-```
-
-`host.docker.internal` resolves to the host machine from inside Docker, allowing the container to reach the Auth Server on port 9000.
-
-Navigate to `http://localhost:8888` — if OIDC is configured correctly, Draw.io will redirect to the Auth Server login before showing the editor.
-
-> **Draw.io callback URI**: the redirect URI Draw.io sends is `http://localhost:8888/`. If Draw.io sends a different URI (check the `redirect_uri_mismatch` error in the Auth Server logs), add the correct URI to `ClientDataLoader.seedDrawio()`.
+**Verify SSO**: log out → click **nthnode** login button → redirects to Auth Server → sign in → lands back in Calibre-Web authenticated.
 
 ---
 
 ## Production deployment
 
-For production, client secrets should be rotated. The `storefront`, `calibre-web`, and `drawio` rows in `oauth2_registered_client` on the production DB can be inserted directly via the admin UI (Phase-11) or a migration script. Do **not** use the dev secrets.
+Client secrets must be rotated for production. Insert client rows via the admin UI (Phase-11) or a migration script — do **not** use the dev secrets.
 
-**Environment variables for each app (production):**
+### Draw.io (docker-compose on EC2)
+
+```yaml
+DRAWIO_OIDC_ISSUER: https://auth.nthnode.com
+DRAWIO_OIDC_CLIENT_ID: drawio
+DRAWIO_OIDC_CLIENT_SECRET: ${DRAWIO_OIDC_SECRET}   # inject from EC2 env / Secrets Manager
+```
 
 ### Calibre-Web (EC2)
+
 Configure via admin UI with production values:
 - Auth URL: `https://auth.nthnode.com/oauth2/authorize`
 - Token URL: `https://auth.nthnode.com/oauth2/token`
 - Userinfo URL: `https://auth.nthnode.com/userinfo`
-- Client ID: `calibre-web`
 - Client Secret: (from AWS Secrets Manager)
-
-### Draw.io (docker-compose on EC2)
-```yaml
-DRAWIO_OIDC_ISSUER: https://auth.nthnode.com
-DRAWIO_OIDC_CLIENT_ID: drawio
-DRAWIO_OIDC_CLIENT_SECRET: ${DRAWIO_OIDC_SECRET}   # inject from EC2 env
-```
 
 ---
 
 ## Manual verification checklist
 
-- [ ] `docker compose up` starts all four services without errors
 - [ ] Auth Server health: `curl http://localhost:9000/actuator/health` → `{"status":"UP"}`
-- [ ] `calibre-web` and `drawio` clients appear in DB: `SELECT client_id FROM oauth2_registered_client;`
-- [ ] Calibre-Web: OAuth login redirects to Auth Server login page
-- [ ] Calibre-Web: after sign-in, returns to Calibre-Web as authenticated user
-- [ ] Draw.io: navigating to `http://localhost:8888` redirects to Auth Server
-- [ ] Draw.io: after sign-in, Draw.io editor loads
+- [ ] `calibre-web` and `drawio` clients in DB: `SELECT client_id FROM oauth2_registered_client;`
+- [ ] Draw.io: `http://localhost:8888` redirects to Auth Server login
+- [ ] Draw.io: after sign-in, editor loads
+- [ ] Calibre-Web: OAuth login button redirects to Auth Server
+- [ ] Calibre-Web: after sign-in, returns as authenticated user
 - [ ] Signing out of one app does not affect the other (no shared session between clients)
