@@ -15,9 +15,12 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     private final JitOidcUserService jitOidcUserService;
+    private final MfaAuthenticationSuccessHandler mfaSuccessHandler;
 
-    public SecurityConfig(JitOidcUserService jitOidcUserService) {
+    public SecurityConfig(JitOidcUserService jitOidcUserService,
+                          MfaAuthenticationSuccessHandler mfaSuccessHandler) {
         this.jitOidcUserService = jitOidcUserService;
+        this.mfaSuccessHandler = mfaSuccessHandler;
     }
 
     @Bean
@@ -29,13 +32,15 @@ public class SecurityConfig {
                 .requestMatchers("/login", "/error").permitAll()
                 .requestMatchers("/hrd/lookup").permitAll()
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**").permitAll()
+                .requestMatchers("/mfa/challenge").hasAuthority("PRE_MFA")
+                .requestMatchers("/mfa/enroll", "/mfa/enroll/confirm", "/mfa/recovery-codes").authenticated()
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form
                 .loginPage("/login")
                 .usernameParameter("email")
                 .passwordParameter("password")
-                .defaultSuccessUrl("/", true)
+                .successHandler(mfaSuccessHandler)
                 .failureUrl("/login?error")
                 .permitAll()
             )
