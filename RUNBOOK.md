@@ -221,7 +221,7 @@ mvn test
 Expected output:
 
 ```
-Tests run: 21, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 30, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -233,16 +233,18 @@ mvn test -Dgroups=''
 mvn test -Dtest="AuthServerApplicationTests,HealthEndpointTest"
 ```
 
-### What the tests cover (PR-02)
+### What the tests cover
 
-| Test Class | Tests | Verifies |
-|---|---|---|
-| `AuthServerApplicationTests` | 1 | Spring context loads with JPA + Flyway on H2 |
-| `HealthEndpointTest` | 2 | `/actuator/health` returns 200 with `"UP"` |
-| `UserRepositoryTest` | 7 | Save, findByEmail, existsByEmail, delete, roles |
-| `IdentityProviderRepositoryTest` | 4 | Save, findByName, findByEnabledTrue |
-| `MfaRecoveryCodeRepositoryTest` | 3 | Save, findByUserIdAndUsedFalse, countByUserIdAndUsedFalse |
-| `AuditEventRepositoryTest` | 4 | Save (with and without userId), findByUserId, findByEventType |
+| Test Class | Tests | Profile | Verifies |
+|---|---|---|---|
+| `AuthServerApplicationTests` | 1 | H2 | Spring context loads with JPA + Security |
+| `HealthEndpointTest` | 2 | H2 | `/actuator/health` returns 200 with `"UP"` |
+| `SecurityConfigTest` | 5 | H2 | Public endpoints, redirect rules, `@WithMockUser` home access |
+| `LoginIntegrationTest` | 4 | Testcontainers | Full login/logout against real DB with seed admin |
+| `UserRepositoryTest` | 7 | Testcontainers | Save, findByEmail, existsByEmail, delete, roles |
+| `IdentityProviderRepositoryTest` | 4 | Testcontainers | Save, findByName, findByEnabledTrue |
+| `MfaRecoveryCodeRepositoryTest` | 3 | Testcontainers | Save, findByUserIdAndUsedFalse, countByUserIdAndUsedFalse |
+| `AuditEventRepositoryTest` | 4 | Testcontainers | Save (with/without userId), findByUserId, findByEventType |
 
 Run a single test class:
 
@@ -346,6 +348,10 @@ TLS termination at the ALB; the app runs HTTP internally.
 - [ ] `curl http://localhost:9000/actuator/info` → returns app name and version
 - [ ] `docker compose ps` → all containers show `healthy` or `running`
 - [ ] No `ERROR` lines in `docker compose logs auth-server`
+- [ ] `http://localhost:9000/login` → login form renders (no auth required)
+- [ ] `http://localhost:9000/` → redirects to `/login` when not authenticated
+- [ ] Log in as `admin@localhost` / `changeme` → lands on home page showing email
+- [ ] Click "Sign out" → redirects to `/login?logout` with success message
 
 ---
 
