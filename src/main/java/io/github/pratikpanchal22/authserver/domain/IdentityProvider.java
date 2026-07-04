@@ -36,6 +36,10 @@ public class IdentityProvider {
     @Column(nullable = false, length = 500)
     private String scopes = "openid,profile,email";
 
+    /** Comma-separated email domains routed to this IDP (e.g. "gmail.com,googlemail.com"). Null = not domain-routed. */
+    @Column(name = "email_domains", length = 500)
+    private String emailDomains;
+
     @Column(nullable = false)
     private boolean enabled = true;
 
