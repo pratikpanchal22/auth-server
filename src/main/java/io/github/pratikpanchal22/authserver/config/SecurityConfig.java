@@ -29,9 +29,10 @@ public class SecurityConfig {
         http
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                .requestMatchers("/login", "/error").permitAll()
+                .requestMatchers("/login", "/error", "/access-denied").permitAll()
                 .requestMatchers("/hrd/lookup").permitAll()
                 .requestMatchers("/css/**", "/js/**", "/images/**", "/webjars/**").permitAll()
+                .requestMatchers("/admin/**").hasRole("ADMIN")
                 .requestMatchers("/mfa/challenge").hasAuthority("PRE_MFA")
                 .requestMatchers("/mfa/enroll", "/mfa/enroll/confirm", "/mfa/recovery-codes").authenticated()
                 .anyRequest().authenticated()
