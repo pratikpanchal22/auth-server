@@ -28,5 +28,31 @@ services:
       timeout: 5s
       retries: 5
 
+  calibre-web:
+    image: lscr.io/linuxserver/calibre-web:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - calibre_config:/config
+      - ./books:/books
+    ports:
+      - "8083:8083"
+    restart: unless-stopped
+
+  drawio:
+    image: jgraph/drawio:latest
+    ports:
+      - "8888:8080"
+    environment:
+      - DRAWIO_BASE_URL=http://localhost:8888
+      - DRAWIO_OIDC_ENABLED=1
+      - DRAWIO_OIDC_ISSUER=http://host.docker.internal:9000
+      - DRAWIO_OIDC_CLIENT_ID=drawio
+      - DRAWIO_OIDC_CLIENT_SECRET=drawio-secret
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  calibre_config:
