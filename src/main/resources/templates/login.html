@@ -11,6 +11,8 @@
     <style>
         body { background-color: #f8f9fa; }
         .card { border: none; border-radius: .75rem; }
+        #step-password { display: none; }
+        .email-badge { font-size: .85rem; }
     </style>
 </head>
 <body class="d-flex align-items-center justify-content-center min-vh-100">
@@ -19,7 +21,7 @@
         <div class="card-body p-4 p-md-5">
 
             <h4 class="fw-semibold mb-1">Sign in</h4>
-            <p class="text-muted small mb-4">Auth Server</p>
+            <p class="text-muted small mb-4">nthNode Auth Server</p>
 
             <div th:if="${param.error}" class="alert alert-danger py-2" role="alert">
                 Invalid email or password.
@@ -28,26 +30,75 @@
                 You have been signed out.
             </div>
 
-            <form th:action="@{/login}" method="post" novalidate>
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-
+            <!-- Step 1: Email -->
+            <div id="step-email">
                 <div class="mb-3">
-                    <label for="email" class="form-label fw-medium">Email address</label>
-                    <input type="email" class="form-control" id="email" name="email"
-                           autocomplete="email" autofocus required>
+                    <label for="emailInput" class="form-label fw-medium">Email address</label>
+                    <input type="email" class="form-control" id="emailInput"
+                           autocomplete="email" autofocus required
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();continueLogin();}">
+                </div>
+                <button type="button" class="btn btn-primary w-100" onclick="continueLogin()">Continue</button>
+            </div>
+
+            <!-- Step 2: Password (local users only) -->
+            <div id="step-password">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <span class="email-badge text-muted" id="emailBadge"></span>
+                    <button type="button" class="btn btn-link btn-sm p-0" onclick="goBack()">Change</button>
                 </div>
 
-                <div class="mb-4">
-                    <label for="password" class="form-label fw-medium">Password</label>
-                    <input type="password" class="form-control" id="password" name="password"
-                           autocomplete="current-password" required>
-                </div>
+                <form th:action="@{/login}" method="post" novalidate>
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <input type="hidden" name="email" id="hiddenEmail">
 
-                <button type="submit" class="btn btn-primary w-100">Sign in</button>
-            </form>
+                    <div class="mb-4">
+                        <label for="password" class="form-label fw-medium">Password</label>
+                        <input type="password" class="form-control" id="password" name="password"
+                               autocomplete="current-password" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">Sign in</button>
+                </form>
+            </div>
 
         </div>
     </div>
+
+    <script>
+        async function continueLogin() {
+            const email = document.getElementById('emailInput').value.trim();
+            if (!email) return;
+
+            try {
+                const resp = await fetch('/hrd/lookup?email=' + encodeURIComponent(email));
+                const data = await resp.json();
+
+                if (data.method === 'FEDERATED' && data.registrationId) {
+                    window.location.href = '/oauth2/authorization/' + encodeURIComponent(data.registrationId);
+                } else {
+                    document.getElementById('hiddenEmail').value = email;
+                    document.getElementById('emailBadge').textContent = email;
+                    document.getElementById('step-email').style.display = 'none';
+                    document.getElementById('step-password').style.display = 'block';
+                    document.getElementById('password').focus();
+                }
+            } catch (e) {
+                // On network error, fall back to showing password step
+                document.getElementById('hiddenEmail').value = email;
+                document.getElementById('emailBadge').textContent = email;
+                document.getElementById('step-email').style.display = 'none';
+                document.getElementById('step-password').style.display = 'block';
+                document.getElementById('password').focus();
+            }
+        }
+
+        function goBack() {
+            document.getElementById('step-password').style.display = 'none';
+            document.getElementById('step-email').style.display = 'block';
+            document.getElementById('emailInput').focus();
+        }
+    </script>
 
 </body>
 </html>
