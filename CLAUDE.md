@@ -23,7 +23,7 @@ docker compose up postgresql -d
 
 ## Architecture
 
-This is a standalone Spring Boot 3.x (Java 21) OIDC Authorization Server for nthNode, LLC. It is the single identity provider for all nthNode applications (storefront, Calibre-Web, Draw.io, etc.).
+This is a standalone Spring Boot 3.x (Java 21) self-hosted OIDC Authorization Server. It acts as the single identity provider for all connected applications (web apps, self-hosted tools, APIs).
 
 Runs on **port 9000**. Uses PostgreSQL for all persistent state.
 
@@ -32,7 +32,7 @@ See `RUNBOOK.md` for full local setup, Docker, and AWS deploy instructions.
 ### Key design points
 
 - Spring Authorization Server issues ID tokens, access tokens, and refresh tokens to downstream client apps
-- Supports two user types: `LOCAL` (BCrypt + TOTP MFA) and `FEDERATED` (OIDC upstream IDPs — Google, Okta, Azure AD)
+- Supports two user types: `LOCAL` (BCrypt + TOTP MFA) and `FEDERATED` (upstream OIDC IDPs — Google, Okta, Azure AD)
 - Home Realm Discovery (HRD): email-first login determines auth path
 - All IDP configs and client registrations are stored in PostgreSQL — no restart needed to add new apps or IDPs
 - Flyway manages all schema migrations
@@ -57,8 +57,3 @@ See `RUNBOOK.md` for full local setup, Docker, and AWS deploy instructions.
 | `AUTH_SERVER_BASE_URL` | env var — public URL used in issuer claim |
 | `AUTH_SERVER_SIGNING_KEY_REF` | AWS Secrets Manager ARN for RSA-2048 signing key |
 | `MFA_ENCRYPTION_KEY_REF` | AWS Secrets Manager ARN for AES-GCM key |
-
-### Design document
-
-Full architecture, auth flows, data model, and implementation plan:
-`store-front` repo → `docs/nthnode-auth-platform-design.md`

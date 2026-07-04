@@ -1,4 +1,4 @@
-package com.nthnode.authserver;
+package io.github.pratikpanchal22.authserver;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

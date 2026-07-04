@@ -1,4 +1,4 @@
-package com.nthnode.authserver;
+package io.github.pratikpanchal22.authserver;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

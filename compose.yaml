@@ -15,15 +15,15 @@ services:
   postgresql:
     image: postgres:15-alpine
     environment:
-      POSTGRES_DB: nthnode_auth_db
-      POSTGRES_USER: nthnode_auth
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: auth_user
       POSTGRES_PASSWORD: ${DB_PASSWORD:-localpassword}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nthnode_auth -d nthnode_auth_db"]
+      test: ["CMD-SHELL", "pg_isready -U auth_user -d auth_db"]
       interval: 10s
       timeout: 5s
       retries: 5

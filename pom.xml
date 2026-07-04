@@ -11,11 +11,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.nthnode</groupId>
+    <groupId>io.github.pratikpanchal22</groupId>
     <artifactId>auth-server</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>nthnode-auth-server</name>
-    <description>nthNode centralized OIDC Authorization Server</description>
+    <name>auth-server</name>
+    <description>Self-hosted SSO — Spring Authorization Server with local + federated auth</description>
 
     <properties>
         <java.version>21</java.version>
