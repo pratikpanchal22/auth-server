@@ -76,7 +76,12 @@
             <!-- Sidebar footer: user + sign-out -->
             <div class="mt-auto border-top pt-3 pb-1">
                 <div class="d-flex align-items-center justify-content-between px-2">
-                    <span class="text-white-50 small" sec:authentication="name">user</span>
+                    <span class="d-flex align-items-center gap-2 text-white-50 small">
+                        <img th:if="${avatarUrl != null}" th:src="${avatarUrl}"
+                             referrerpolicy="no-referrer"
+                             style="width:28px;height:28px;border-radius:50%;object-fit:cover;" alt="">
+                        <span th:text="${displayName}">user</span>
+                    </span>
                     <div class="d-flex gap-1 align-items-center">
                         <button class="btn btn-ghost-light btn-sm btn-icon" onclick="toggleTheme()" title="Toggle theme">
                             <i id="themeIcon" class="ti ti-sun"></i>

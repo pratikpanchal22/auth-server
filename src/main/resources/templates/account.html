@@ -25,7 +25,12 @@
                    class="btn btn-sm" style="background:var(--nt-blue,#1a73e8);color:#fff;border-radius:24px;">
                     Admin
                 </a>
-                <span class="text-muted small" sec:authentication="name">user</span>
+                <span class="d-flex align-items-center gap-2 text-muted small">
+                    <img th:if="${avatarUrl != null}" th:src="${avatarUrl}"
+                         referrerpolicy="no-referrer"
+                         style="width:28px;height:28px;border-radius:50%;object-fit:cover;" alt="">
+                    <span th:text="${displayName}">user</span>
+                </span>
                 <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle theme"
                         aria-label="Toggle dark mode"
                         style="position:static;box-shadow:none;border-color:var(--nt-border);width:32px;height:32px;font-size:.9rem;">
