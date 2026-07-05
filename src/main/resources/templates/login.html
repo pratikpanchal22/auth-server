@@ -23,7 +23,9 @@
             </div>
 
             <div th:if="${param.error}" class="alert alert-danger py-2 small" role="alert">
-                Invalid email or password.
+                <span th:if="${param.error[0] == 'mfa_locked'}">Account locked — too many failed verification attempts. Contact your administrator.</span>
+                <span th:if="${param.error[0] == 'rate_limited'}">Too many sign-in attempts. Please wait a few minutes and try again.</span>
+                <span th:if="${param.error[0] != 'mfa_locked' and param.error[0] != 'rate_limited'}">Invalid email or password.</span>
             </div>
             <div th:if="${param.logout}" class="alert alert-success py-2 small" role="alert">
                 You have been signed out.

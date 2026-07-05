@@ -145,10 +145,22 @@ public class AdminController {
         userRepository.findById(id).ifPresent(user -> {
             user.setMfaEnabled(false);
             user.setTotpSecretRef(null);
+            user.setTotpFailedAttempts(0);
             userRepository.save(user);
             recoveryCodeRepository.deleteByUser_Id(id);
         });
         ra.addFlashAttribute("success", "MFA reset");
+        return "redirect:/admin/users";
+    }
+
+    @PostMapping("/users/{id}/unlock-totp")
+    @Transactional
+    public String unlockTotp(@PathVariable UUID id, RedirectAttributes ra) {
+        userRepository.findById(id).ifPresent(user -> {
+            user.setTotpFailedAttempts(0);
+            userRepository.save(user);
+        });
+        ra.addFlashAttribute("success", "TOTP lockout cleared");
         return "redirect:/admin/users";
     }
 
