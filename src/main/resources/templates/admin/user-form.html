@@ -82,6 +82,15 @@
                                     </label>
                                 </div>
 
+                                <div class="mb-3">
+                                    <label class="form-check">
+                                        <input class="form-check-input" type="checkbox"
+                                               name="mfaRequired" value="true" th:checked="*{mfaRequired}">
+                                        <span class="form-check-label">Require MFA</span>
+                                    </label>
+                                    <div class="form-hint">User will be redirected to enroll in MFA on next sign-in.</div>
+                                </div>
+
                                 <div th:if="${editMode and mfaEnabled}" class="alert alert-info small py-2 mb-3">
                                     MFA is <strong>enabled</strong> for this user.
                                     Use the <em>Reset MFA</em> button on the user list to disable it.

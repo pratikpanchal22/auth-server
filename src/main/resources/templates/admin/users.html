@@ -77,7 +77,10 @@
                                         <span th:if="${u.totpFailedAttempts >= 4}" class="badge bg-danger-lt text-danger">Locked</span>
                                         <span th:unless="${u.totpFailedAttempts >= 4}" class="badge bg-warning-lt text-warning">On</span>
                                     </th:block>
-                                    <span th:unless="${u.mfaEnabled}" class="badge bg-secondary-lt text-secondary">Off</span>
+                                    <th:block th:unless="${u.mfaEnabled}">
+                                        <span th:if="${u.mfaRequired}" class="badge bg-orange-lt text-orange">Required</span>
+                                        <span th:unless="${u.mfaRequired}" class="badge bg-secondary-lt text-secondary">Off</span>
+                                    </th:block>
                                 </td>
                                 <td class="text-muted small" th:text="${#temporals.format(u.createdAt, 'yyyy-MM-dd')}"></td>
                                 <td class="text-muted small"

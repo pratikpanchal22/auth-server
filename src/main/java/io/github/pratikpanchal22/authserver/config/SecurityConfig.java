@@ -1,6 +1,8 @@
 package io.github.pratikpanchal22.authserver.config;
 
+import io.github.pratikpanchal22.authserver.security.MfaEnrollmentFilter;
 import io.github.pratikpanchal22.authserver.service.JitOidcUserService;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -9,6 +11,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -18,15 +21,18 @@ public class SecurityConfig {
     private final MfaAuthenticationSuccessHandler mfaSuccessHandler;
     private final LoginFailureHandler loginFailureHandler;
     private final AuditLogoutSuccessHandler auditLogoutHandler;
+    private final MfaEnrollmentFilter mfaEnrollmentFilter;
 
     public SecurityConfig(JitOidcUserService jitOidcUserService,
                           MfaAuthenticationSuccessHandler mfaSuccessHandler,
                           LoginFailureHandler loginFailureHandler,
-                          AuditLogoutSuccessHandler auditLogoutHandler) {
+                          AuditLogoutSuccessHandler auditLogoutHandler,
+                          MfaEnrollmentFilter mfaEnrollmentFilter) {
         this.jitOidcUserService = jitOidcUserService;
         this.mfaSuccessHandler = mfaSuccessHandler;
         this.loginFailureHandler = loginFailureHandler;
         this.auditLogoutHandler = auditLogoutHandler;
+        this.mfaEnrollmentFilter = mfaEnrollmentFilter;
     }
 
     @Bean
@@ -60,7 +66,19 @@ public class SecurityConfig {
                 .logoutSuccessHandler(auditLogoutHandler)
                 .permitAll()
             );
+
+        http.addFilterAfter(mfaEnrollmentFilter, AnonymousAuthenticationFilter.class);
+
         return http.build();
+    }
+
+    /** Prevent Spring Boot from auto-registering MfaEnrollmentFilter as a plain servlet filter. */
+    @Bean
+    public FilterRegistrationBean<MfaEnrollmentFilter> mfaEnrollmentFilterRegistration(
+            MfaEnrollmentFilter filter) {
+        FilterRegistrationBean<MfaEnrollmentFilter> reg = new FilterRegistrationBean<>(filter);
+        reg.setEnabled(false);
+        return reg;
     }
 
     @Bean

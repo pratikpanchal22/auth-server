@@ -7,6 +7,7 @@ public class UserForm {
     private String email;
     private String password;
     private boolean active = true;
+    private boolean mfaRequired = false;
     private Set<String> roles = new HashSet<>();
     private Set<String> allowedClients = new HashSet<>();
 
@@ -18,6 +19,9 @@ public class UserForm {
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    public boolean isMfaRequired() { return mfaRequired; }
+    public void setMfaRequired(boolean mfaRequired) { this.mfaRequired = mfaRequired; }
 
     public Set<String> getRoles() { return roles; }
     public void setRoles(Set<String> roles) { this.roles = roles; }

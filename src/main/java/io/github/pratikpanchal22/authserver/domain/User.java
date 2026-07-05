@@ -36,6 +36,9 @@ public class User {
     @Column(name = "mfa_enabled", nullable = false)
     private boolean mfaEnabled = false;
 
+    @Column(name = "mfa_required", nullable = false)
+    private boolean mfaRequired = false;
+
     @Column(name = "totp_secret_ref")
     private String totpSecretRef;
 

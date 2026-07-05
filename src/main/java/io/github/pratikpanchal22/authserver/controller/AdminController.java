@@ -92,6 +92,7 @@ public class AdminController {
         user.setPasswordHash(passwordEncoder.encode(form.getPassword()));
         user.setAuthType(AuthType.LOCAL);
         user.setActive(form.isActive());
+        user.setMfaRequired(form.isMfaRequired());
         user.setRoles(form.getRoles() != null ? form.getRoles() : new HashSet<>());
         user.setAllowedClients(form.getAllowedClients() != null ? form.getAllowedClients() : new HashSet<>());
         userRepository.save(user);
@@ -105,6 +106,7 @@ public class AdminController {
         UserForm form = new UserForm();
         form.setEmail(user.getEmail());
         form.setActive(user.isActive());
+        form.setMfaRequired(user.isMfaRequired());
         form.setRoles(new HashSet<>(user.getRoles()));
         form.setAllowedClients(new HashSet<>(user.getAllowedClients()));
         model.addAttribute("form", form);
@@ -122,6 +124,7 @@ public class AdminController {
                              RedirectAttributes ra) {
         User user = userRepository.findById(id).orElseThrow();
         user.setActive(form.isActive());
+        user.setMfaRequired(form.isMfaRequired());
         user.setRoles(form.getRoles() != null ? form.getRoles() : new HashSet<>());
         user.setAllowedClients(form.getAllowedClients() != null ? form.getAllowedClients() : new HashSet<>());
         if (form.getPassword() != null && !form.getPassword().isBlank()) {
