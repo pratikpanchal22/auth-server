@@ -54,4 +54,9 @@ public class User {
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "role")
     private Set<String> roles = new HashSet<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_allowed_clients", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "client_id")
+    private Set<String> allowedClients = new HashSet<>();
 }
