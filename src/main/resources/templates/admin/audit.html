@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit Log · Admin</title>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-bs-theme',t);})();</script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta21/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/dist/tabler-icons.min.css">
+</head>
+<body class="antialiased">
+
+<aside th:replace="~{admin/fragments :: sidebar('audit')}"></aside>
+
+<div class="page-wrapper">
+    <div class="page-header d-print-none">
+        <div class="container-xl">
+            <div class="row g-2 align-items-center">
+                <div class="col">
+                    <h2 class="page-title">Audit Log</h2>
+                    <div class="text-muted mt-1 small">Last 200 events, newest first</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-body">
+        <div class="container-xl">
+
+            <div class="card">
+                <div class="table-responsive">
+                    <table class="table table-vcenter card-table table-sm">
+                        <thead>
+                            <tr>
+                                <th style="width:160px;">Time (UTC)</th>
+                                <th style="width:160px;">Event</th>
+                                <th>User</th>
+                                <th>IP Address</th>
+                                <th>User Agent</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="r : ${rows}">
+                                <td class="text-muted small text-nowrap"
+                                    th:text="${#temporals.format(r.createdAt(), 'yyyy-MM-dd HH:mm:ss')}"></td>
+                                <td>
+                                    <span class="badge"
+                                          th:classappend="${r.eventType() == 'LOGIN_SUCCESS' or r.eventType() == 'MFA_SUCCESS'} ? 'bg-success-lt text-success'
+                                                        : (${r.eventType() == 'FEDERATED_LOGIN'} ? 'bg-cyan-lt text-cyan'
+                                                        : (${r.eventType() == 'LOGOUT'} ? 'bg-blue-lt text-blue'
+                                                        : 'bg-danger-lt text-danger'))"
+                                          th:text="${r.eventType()}"></span>
+                                </td>
+                                <td class="small" th:text="${r.email() != null ? r.email() : '—'}"></td>
+                                <td class="text-muted small text-nowrap" th:text="${r.ipAddress() != null ? r.ipAddress() : '—'}"></td>
+                                <td class="text-muted small"
+                                    th:text="${r.userAgent() != null ? #strings.abbreviate(r.userAgent(), 80) : '—'}"></td>
+                            </tr>
+                            <tr th:if="${#lists.isEmpty(rows)}">
+                                <td colspan="5" class="text-center text-muted py-4">No audit events yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta21/dist/js/tabler.min.js"></script>
+<script src="/js/theme.js"></script>
+</body>
+</html>

@@ -3,30 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign In</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-          rel="stylesheet"
-          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
-          crossorigin="anonymous">
-    <style>
-        body { background-color: #f8f9fa; }
-        .card { border: none; border-radius: .75rem; }
-        #step-password { display: none; }
-        .email-badge { font-size: .85rem; }
-    </style>
+    <title>Sign In · nthNode</title>
+    <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-bs-theme',t);})();</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link th:href="@{/css/auth.css}" rel="stylesheet">
 </head>
 <body class="d-flex align-items-center justify-content-center min-vh-100">
 
-    <div class="card shadow-sm" style="width: 380px;">
+    <div class="card" style="width: 400px;">
         <div class="card-body p-4 p-md-5">
 
-            <h4 class="fw-semibold mb-1">Sign in</h4>
-            <p class="text-muted small mb-4">nthNode Auth Server</p>
+            <div class="text-center mb-4">
+                <h4 class="fw-semibold mb-1">Sign in</h4>
+                <p class="text-muted small mb-0">nthNode Auth Server</p>
+            </div>
 
-            <div th:if="${param.error}" class="alert alert-danger py-2" role="alert">
+            <div th:if="${param.error}" class="alert alert-danger py-2 small" role="alert">
                 Invalid email or password.
             </div>
-            <div th:if="${param.logout}" class="alert alert-success py-2" role="alert">
+            <div th:if="${param.logout}" class="alert alert-success py-2 small" role="alert">
                 You have been signed out.
             </div>
 
@@ -42,10 +41,10 @@
             </div>
 
             <!-- Step 2: Password (local users only) -->
-            <div id="step-password">
+            <div id="step-password" style="display:none;">
                 <div class="d-flex align-items-center justify-content-between mb-3">
-                    <span class="email-badge text-muted" id="emailBadge"></span>
-                    <button type="button" class="btn btn-link btn-sm p-0" onclick="goBack()">Change</button>
+                    <span class="text-muted small" id="emailBadge"></span>
+                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" onclick="goBack()">Change</button>
                 </div>
 
                 <form th:action="@{/login}" method="post" novalidate>
@@ -65,32 +64,34 @@
         </div>
     </div>
 
+    <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle dark mode">
+        <span id="themeIcon">☀️</span>
+    </button>
+
+    <script src="/js/theme.js"></script>
     <script>
         async function continueLogin() {
             const email = document.getElementById('emailInput').value.trim();
             if (!email) return;
-
             try {
                 const resp = await fetch('/hrd/lookup?email=' + encodeURIComponent(email));
                 const data = await resp.json();
-
                 if (data.method === 'FEDERATED' && data.registrationId) {
                     window.location.href = '/oauth2/authorization/' + encodeURIComponent(data.registrationId);
                 } else {
-                    document.getElementById('hiddenEmail').value = email;
-                    document.getElementById('emailBadge').textContent = email;
-                    document.getElementById('step-email').style.display = 'none';
-                    document.getElementById('step-password').style.display = 'block';
-                    document.getElementById('password').focus();
+                    showPasswordStep(email);
                 }
             } catch (e) {
-                // On network error, fall back to showing password step
-                document.getElementById('hiddenEmail').value = email;
-                document.getElementById('emailBadge').textContent = email;
-                document.getElementById('step-email').style.display = 'none';
-                document.getElementById('step-password').style.display = 'block';
-                document.getElementById('password').focus();
+                showPasswordStep(email);
             }
+        }
+
+        function showPasswordStep(email) {
+            document.getElementById('hiddenEmail').value = email;
+            document.getElementById('emailBadge').textContent = email;
+            document.getElementById('step-email').style.display = 'none';
+            document.getElementById('step-password').style.display = 'block';
+            document.getElementById('password').focus();
         }
 
         function goBack() {

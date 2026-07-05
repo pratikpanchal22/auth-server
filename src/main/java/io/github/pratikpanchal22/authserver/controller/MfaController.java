@@ -2,6 +2,8 @@ package io.github.pratikpanchal22.authserver.controller;
 
 import io.github.pratikpanchal22.authserver.config.MfaAuthenticationSuccessHandler;
 import io.github.pratikpanchal22.authserver.repository.UserRepository;
+import io.github.pratikpanchal22.authserver.service.AuditService;
+import io.github.pratikpanchal22.authserver.service.LoginTrackingService;
 import io.github.pratikpanchal22.authserver.service.RecoveryCodeService;
 import io.github.pratikpanchal22.authserver.service.TotpService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,15 +35,21 @@ public class MfaController {
     private final TotpService totpService;
     private final RecoveryCodeService recoveryCodeService;
     private final UserRepository userRepository;
+    private final LoginTrackingService loginTrackingService;
+    private final AuditService auditService;
     private final HttpSessionSecurityContextRepository contextRepository =
             new HttpSessionSecurityContextRepository();
 
     public MfaController(TotpService totpService,
                          RecoveryCodeService recoveryCodeService,
-                         UserRepository userRepository) {
+                         UserRepository userRepository,
+                         LoginTrackingService loginTrackingService,
+                         AuditService auditService) {
         this.totpService = totpService;
         this.recoveryCodeService = recoveryCodeService;
         this.userRepository = userRepository;
+        this.loginTrackingService = loginTrackingService;
+        this.auditService = auditService;
     }
 
     // ── Challenge ────────────────────────────────────────────────────────────
@@ -66,7 +74,13 @@ public class MfaController {
         boolean valid = totpService.isValidCode(user.getTotpSecretRef(), code)
                 || recoveryCodeService.consumeRecoveryCode(user, code);
 
-        if (!valid) return "redirect:/mfa/challenge?error";
+        if (!valid) {
+            auditService.log("MFA_FAILURE", principal.getUsername(), request);
+            return "redirect:/mfa/challenge?error";
+        }
+
+        loginTrackingService.recordSuccess(principal.getUsername());
+        auditService.log("MFA_SUCCESS", principal.getUsername(), request);
 
         session.removeAttribute(MfaAuthenticationSuccessHandler.PENDING_MFA_AUTH);
         SecurityContext context = SecurityContextHolder.createEmptyContext();

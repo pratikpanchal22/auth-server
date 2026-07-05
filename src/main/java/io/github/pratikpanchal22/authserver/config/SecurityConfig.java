@@ -16,11 +16,17 @@ public class SecurityConfig {
 
     private final JitOidcUserService jitOidcUserService;
     private final MfaAuthenticationSuccessHandler mfaSuccessHandler;
+    private final LoginFailureHandler loginFailureHandler;
+    private final AuditLogoutSuccessHandler auditLogoutHandler;
 
     public SecurityConfig(JitOidcUserService jitOidcUserService,
-                          MfaAuthenticationSuccessHandler mfaSuccessHandler) {
+                          MfaAuthenticationSuccessHandler mfaSuccessHandler,
+                          LoginFailureHandler loginFailureHandler,
+                          AuditLogoutSuccessHandler auditLogoutHandler) {
         this.jitOidcUserService = jitOidcUserService;
         this.mfaSuccessHandler = mfaSuccessHandler;
+        this.loginFailureHandler = loginFailureHandler;
+        this.auditLogoutHandler = auditLogoutHandler;
     }
 
     @Bean
@@ -42,7 +48,7 @@ public class SecurityConfig {
                 .usernameParameter("email")
                 .passwordParameter("password")
                 .successHandler(mfaSuccessHandler)
-                .failureUrl("/login?error")
+                .failureHandler(loginFailureHandler)
                 .permitAll()
             )
             .oauth2Login(oauth2 -> oauth2
@@ -51,7 +57,7 @@ public class SecurityConfig {
                 .userInfoEndpoint(info -> info.oidcUserService(jitOidcUserService))
             )
             .logout(logout -> logout
-                .logoutSuccessUrl("/login?logout")
+                .logoutSuccessHandler(auditLogoutHandler)
                 .permitAll()
             );
         return http.build();
