@@ -1,21 +1,28 @@
 package io.github.pratikpanchal22.authserver.service;
 
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
 
-/**
- * Resolves secret references. ARN-based refs are handled in PR-14 (AWS Secrets Manager);
- * for now, a non-ARN value is returned as-is (dev/test convenience).
- */
+import java.util.concurrent.ConcurrentHashMap;
+
 @Service
 public class SecretsService {
 
     private static final String ARN_PREFIX = "arn:aws:secretsmanager:";
 
+    private final SecretsManagerClient client;
+    private final ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
+
+    public SecretsService() {
+        this.client = SecretsManagerClient.create();
+    }
+
     public String resolve(String ref) {
         if (ref != null && ref.startsWith(ARN_PREFIX)) {
-            // AWS Secrets Manager integration added in PR-14
-            throw new UnsupportedOperationException(
-                    "AWS Secrets Manager resolution not yet implemented. Ref: " + ref);
+            return cache.computeIfAbsent(ref, arn ->
+                    client.getSecretValue(GetSecretValueRequest.builder().secretId(arn).build())
+                          .secretString());
         }
         return ref;
     }
