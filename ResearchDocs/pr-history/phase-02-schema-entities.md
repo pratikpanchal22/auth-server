@@ -1,4 +1,4 @@
-# PR-02: Flyway Schema, JPA Entities, and Repositories
+# Phase-02: Flyway Schema, JPA Entities, and Repositories
 
 ## What this PR does
 

@@ -1,4 +1,4 @@
-# PR-08: HRD Email-First Login UI + Google OIDC End-to-End
+# Phase-08: HRD Email-First Login UI + Google OIDC End-to-End
 
 ## What this PR does
 

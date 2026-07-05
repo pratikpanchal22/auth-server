@@ -1,4 +1,4 @@
-# PR-07: Upstream IDP Federation — DatabaseClientRegistrationRepository + JIT Provisioning
+# Phase-07: Upstream IDP Federation — DatabaseClientRegistrationRepository + JIT Provisioning
 
 ## What this PR does
 

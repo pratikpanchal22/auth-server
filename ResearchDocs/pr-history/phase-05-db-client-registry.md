@@ -1,4 +1,4 @@
-# PR-05: Database-Backed Client Registry
+# Phase-05: Database-Backed Client Registry
 
 ## What this PR does
 
