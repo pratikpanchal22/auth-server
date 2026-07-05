@@ -1,4 +1,4 @@
-# PR-04: Spring Authorization Server — OIDC Token Issuance
+# Phase-04: Spring Authorization Server — OIDC Token Issuance
 
 ## What this PR does
 
