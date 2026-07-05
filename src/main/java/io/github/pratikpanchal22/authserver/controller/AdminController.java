@@ -1,13 +1,18 @@
 package io.github.pratikpanchal22.authserver.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.pratikpanchal22.authserver.domain.AuditEvent;
 import io.github.pratikpanchal22.authserver.domain.AuthType;
 import io.github.pratikpanchal22.authserver.domain.IdentityProvider;
 import io.github.pratikpanchal22.authserver.domain.User;
 import io.github.pratikpanchal22.authserver.dto.IdpForm;
 import io.github.pratikpanchal22.authserver.dto.UserForm;
+import io.github.pratikpanchal22.authserver.repository.AuditEventRepository;
 import io.github.pratikpanchal22.authserver.repository.IdentityProviderRepository;
 import io.github.pratikpanchal22.authserver.repository.MfaRecoveryCodeRepository;
 import io.github.pratikpanchal22.authserver.repository.UserRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,6 +22,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,18 +37,28 @@ public class AdminController {
     private final MfaRecoveryCodeRepository recoveryCodeRepository;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbcTemplate;
+    private final AuditEventRepository auditEventRepository;
+    private final ObjectMapper objectMapper;
 
     public AdminController(UserRepository userRepository,
                            IdentityProviderRepository idpRepository,
                            MfaRecoveryCodeRepository recoveryCodeRepository,
                            PasswordEncoder passwordEncoder,
-                           JdbcTemplate jdbcTemplate) {
+                           JdbcTemplate jdbcTemplate,
+                           AuditEventRepository auditEventRepository,
+                           ObjectMapper objectMapper) {
         this.userRepository = userRepository;
         this.idpRepository = idpRepository;
         this.recoveryCodeRepository = recoveryCodeRepository;
         this.passwordEncoder = passwordEncoder;
         this.jdbcTemplate = jdbcTemplate;
+        this.auditEventRepository = auditEventRepository;
+        this.objectMapper = objectMapper;
     }
+
+    public record AuditRow(Instant createdAt, String eventType, String email,
+                           String ipAddress, String userAgent) {}
+
 
     @GetMapping({"", "/"})
     public String root() {
@@ -204,6 +220,37 @@ public class AdminController {
         idpRepository.deleteById(id);
         ra.addFlashAttribute("success", "Identity provider deleted");
         return "redirect:/admin/idps";
+    }
+
+    // ==================== Audit Log ====================
+
+    @GetMapping("/audit")
+    public String audit(Model model) {
+        List<AuditEvent> events = auditEventRepository.findAll(
+                PageRequest.of(0, 200, Sort.by(Sort.Direction.DESC, "createdAt"))
+        ).getContent();
+
+        List<AuditRow> rows = events.stream()
+                .map(e -> new AuditRow(
+                        e.getCreatedAt(),
+                        e.getEventType(),
+                        extractEmail(e.getMetadata()),
+                        e.getIpAddress(),
+                        e.getUserAgent()))
+                .toList();
+
+        model.addAttribute("rows", rows);
+        return "admin/audit";
+    }
+
+    private String extractEmail(String metadata) {
+        if (metadata == null || metadata.isBlank()) return null;
+        try {
+            JsonNode node = objectMapper.readTree(metadata);
+            return node.path("email").asText(null);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // ==================== OAuth Clients ====================

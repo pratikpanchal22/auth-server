@@ -3,37 +3,99 @@
       xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="en">
 <body>
 
-<nav th:fragment="topNav" class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container-fluid px-4">
-        <span class="navbar-brand fw-semibold">Auth Server <span class="text-warning">· Admin</span></span>
-        <div class="ms-auto d-flex align-items-center gap-3">
-            <a href="/" class="text-white-50 small text-decoration-none">← Back to home</a>
-            <span class="text-white-50 small" sec:authentication="name">user</span>
-            <form th:action="@{/logout}" method="post" class="m-0">
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <button type="submit" class="btn btn-outline-light btn-sm">Sign out</button>
-            </form>
-        </div>
-    </div>
-</nav>
+<!--
+  Tabler sidebar — replaces the old Bootstrap dark navbar + separate topNav.
+  Sign-out and home link live in the sidebar footer.
+  topNav fragment is kept as an empty stub for any legacy references.
+-->
+
+<nav th:fragment="topNav"></nav>
 
 <aside th:fragment="sidebar(active)"
-       class="d-flex flex-column bg-white border-end py-3"
-       style="width: 210px; min-width: 210px; min-height: calc(100vh - 56px);">
-    <ul class="nav nav-pills flex-column px-2 gap-1">
-        <li class="nav-item">
-            <a th:href="@{/admin/users}"
-               th:class="${active == 'users'} ? 'nav-link active' : 'nav-link text-dark'">Users</a>
-        </li>
-        <li class="nav-item">
-            <a th:href="@{/admin/idps}"
-               th:class="${active == 'idps'} ? 'nav-link active' : 'nav-link text-dark'">Identity Providers</a>
-        </li>
-        <li class="nav-item">
-            <a th:href="@{/admin/clients}"
-               th:class="${active == 'clients'} ? 'nav-link active' : 'nav-link text-dark'">OAuth Clients</a>
-        </li>
-    </ul>
+       class="navbar navbar-vertical navbar-expand-lg"
+       data-bs-theme="dark">
+    <div class="container-fluid">
+
+        <button class="navbar-toggler" type="button"
+                data-bs-toggle="collapse" data-bs-target="#navbar-menu"
+                aria-controls="navbar-menu" aria-expanded="false">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <h1 class="navbar-brand navbar-brand-autodark mb-0">
+            <span class="fw-semibold" style="font-size:1rem;">
+                Auth Server <span class="text-yellow">· Admin</span>
+            </span>
+        </h1>
+
+        <div class="collapse navbar-collapse" id="navbar-menu">
+            <ul class="navbar-nav pt-lg-3">
+
+                <li class="nav-item">
+                    <a th:href="@{/admin/users}"
+                       th:class="${active == 'users'} ? 'nav-link active' : 'nav-link'">
+                        <span class="nav-link-icon d-md-none d-lg-block">
+                            <i class="ti ti-users"></i>
+                        </span>
+                        <span class="nav-link-title">Users</span>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a th:href="@{/admin/idps}"
+                       th:class="${active == 'idps'} ? 'nav-link active' : 'nav-link'">
+                        <span class="nav-link-icon d-md-none d-lg-block">
+                            <i class="ti ti-building-community"></i>
+                        </span>
+                        <span class="nav-link-title">Identity Providers</span>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a th:href="@{/admin/clients}"
+                       th:class="${active == 'clients'} ? 'nav-link active' : 'nav-link'">
+                        <span class="nav-link-icon d-md-none d-lg-block">
+                            <i class="ti ti-apps"></i>
+                        </span>
+                        <span class="nav-link-title">OAuth Clients</span>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a th:href="@{/admin/audit}"
+                       th:class="${active == 'audit'} ? 'nav-link active' : 'nav-link'">
+                        <span class="nav-link-icon d-md-none d-lg-block">
+                            <i class="ti ti-clipboard-list"></i>
+                        </span>
+                        <span class="nav-link-title">Audit Log</span>
+                    </a>
+                </li>
+
+            </ul>
+
+            <!-- Sidebar footer: user + sign-out -->
+            <div class="mt-auto border-top pt-3 pb-1">
+                <div class="d-flex align-items-center justify-content-between px-2">
+                    <span class="text-white-50 small" sec:authentication="name">user</span>
+                    <div class="d-flex gap-1 align-items-center">
+                        <button class="btn btn-ghost-light btn-sm btn-icon" onclick="toggleTheme()" title="Toggle theme">
+                            <i id="themeIcon" class="ti ti-sun"></i>
+                        </button>
+                        <a th:href="@{/}" class="btn btn-ghost-light btn-sm btn-icon" title="Back to home">
+                            <i class="ti ti-home"></i>
+                        </a>
+                        <form th:action="@{/logout}" method="post" class="m-0">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                            <button type="submit" class="btn btn-ghost-danger btn-sm btn-icon" title="Sign out">
+                                <i class="ti ti-logout"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
 </aside>
 
 </body>

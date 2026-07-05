@@ -1,0 +1,193 @@
+/*
+ * nthNode auth-server user-facing pages
+ * Mirrors the store-front design token system.
+ * Layered on top of Bootstrap 5 — no utility classes removed.
+ * Dark mode: responds to data-bs-theme="dark" on <html>.
+ */
+
+:root {
+  --nt-blue:        #1a73e8;
+  --nt-blue-hover:  #1557b0;
+  --nt-bg:          #f8f9fa;
+  --nt-surface:     #ffffff;
+  --nt-text:        #202124;
+  --nt-muted:       #5f6368;
+  --nt-border:      #dadce0;
+  --nt-shadow-md:   0 1px 3px 0 rgba(60,64,67,.3), 0 4px 8px 3px rgba(60,64,67,.15);
+}
+
+/* ── Base ─────────────────────────────────────────── */
+body {
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--nt-bg);
+  color: var(--nt-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Card ─────────────────────────────────────────── */
+.card {
+  border: 1px solid var(--nt-border) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--nt-shadow-md) !important;
+}
+
+/* ── Buttons ──────────────────────────────────────── */
+.btn-primary {
+  background-color: var(--nt-blue);
+  border-color:     var(--nt-blue);
+  border-radius:    24px;
+  font-weight:      500;
+  font-size:        .875rem;
+  letter-spacing:   .01em;
+  padding:          10px 24px;
+}
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active,
+.btn-primary:focus-visible {
+  background-color: var(--nt-blue-hover) !important;
+  border-color:     var(--nt-blue-hover) !important;
+  box-shadow:       none !important;
+}
+.btn-link { color: var(--nt-blue); }
+.btn-link:hover { color: var(--nt-blue-hover); }
+
+/* ── Form controls ────────────────────────────────── */
+.form-control {
+  border-color: var(--nt-border);
+  border-radius: 8px;
+  font-size: .875rem;
+  color: var(--nt-text);
+}
+.form-control:focus {
+  border-color: var(--nt-blue);
+  box-shadow: 0 0 0 3px rgba(26,115,232,.15);
+}
+.form-label {
+  color: var(--nt-text);
+  font-size: .875rem;
+}
+
+/* ── Typography & links ───────────────────────────── */
+.text-muted { color: var(--nt-muted) !important; }
+a { color: var(--nt-blue); }
+a:hover { color: var(--nt-blue-hover); }
+
+/* ── Alert overrides ──────────────────────────────── */
+.alert-danger {
+  background: #fce8e6;
+  border-color: #f5c6cb;
+  color: #c5221f;
+}
+.alert-success {
+  background: #e6f4ea;
+  border-color: #b7dfbf;
+  color: #137333;
+}
+.alert-warning {
+  background: #fef7e0;
+  border-color: #fdd663;
+  color: #7d5a00;
+}
+
+/* ── Recovery code grid ───────────────────────────── */
+.code-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .5rem;
+}
+.recovery-code {
+  font-family: 'Roboto Mono', monospace;
+  font-size: .9rem;
+  letter-spacing: .08rem;
+  background: var(--nt-bg);
+  border: 1px solid var(--nt-border);
+  border-radius: 8px;
+  padding: .4rem .75rem;
+  text-align: center;
+}
+
+/* ── Dark mode token overrides ───────────────────── */
+[data-bs-theme="dark"] {
+  --nt-blue:        #8ab4f8;
+  --nt-blue-hover:  #aecbfa;
+  --nt-bg:          #202124;
+  --nt-surface:     #292a2d;
+  --nt-text:        #e8eaed;
+  --nt-muted:       #9aa0a6;
+  --nt-border:      #5f6368;
+  --nt-shadow-md:   0 1px 3px 0 rgba(0,0,0,.4), 0 4px 8px 3px rgba(0,0,0,.3);
+}
+
+/* Keep nthNode blue on the primary button in dark mode */
+[data-bs-theme="dark"] .btn-primary {
+  background-color: var(--nt-blue);
+  border-color:     var(--nt-blue);
+  color:            #202124;
+}
+[data-bs-theme="dark"] .btn-primary:hover,
+[data-bs-theme="dark"] .btn-primary:focus,
+[data-bs-theme="dark"] .btn-primary:active {
+  background-color: var(--nt-blue-hover) !important;
+  border-color:     var(--nt-blue-hover) !important;
+  color:            #202124 !important;
+}
+
+/* Monospace display elements */
+[data-bs-theme="dark"] .recovery-code,
+[data-bs-theme="dark"] .secret-key {
+  background:   #35363a;
+  border-color: var(--nt-border);
+  color:        var(--nt-text);
+}
+
+/* Alert colours in dark mode */
+[data-bs-theme="dark"] .alert-danger  { background:#3c1f1e; border-color:#6b2c2a; color:#f28b82; }
+[data-bs-theme="dark"] .alert-success { background:#1c3325; border-color:#2d5a3d; color:#81c995; }
+[data-bs-theme="dark"] .alert-warning { background:#2d2406; border-color:#5a4a00; color:#fdd663; }
+
+/* ── Theme toggle button (floating, user-facing pages) */
+.theme-toggle-btn {
+  position:    fixed;
+  top:         1rem;
+  right:       1rem;
+  z-index:     1000;
+  width:       40px;
+  height:      40px;
+  border-radius: 50%;
+  border:      1px solid var(--nt-border);
+  background:  var(--nt-surface);
+  cursor:      pointer;
+  font-size:   1.1rem;
+  display:     flex;
+  align-items: center;
+  justify-content: center;
+  transition:  transform .2s ease, box-shadow .2s ease;
+  box-shadow:  0 1px 3px rgba(60,64,67,.25);
+  padding:     0;
+}
+.theme-toggle-btn:hover {
+  transform:  scale(1.08);
+  box-shadow: 0 2px 6px rgba(60,64,67,.35);
+}
+
+/* ── MFA code input ───────────────────────────────── */
+.code-input {
+  letter-spacing: .35rem;
+  font-size: 1.4rem;
+  text-align: center;
+  font-family: 'Roboto Mono', monospace;
+}
+
+/* ── Secret key display ───────────────────────────── */
+.secret-key {
+  font-family: 'Roboto Mono', monospace;
+  font-size: .875rem;
+  letter-spacing: .05rem;
+  background: var(--nt-bg);
+  border: 1px solid var(--nt-border);
+  border-radius: 8px;
+  padding: .4rem .75rem;
+  display: inline-block;
+  user-select: all;
+}

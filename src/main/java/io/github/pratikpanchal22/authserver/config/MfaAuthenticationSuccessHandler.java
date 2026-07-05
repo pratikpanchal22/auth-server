@@ -1,6 +1,8 @@
 package io.github.pratikpanchal22.authserver.config;
 
 import io.github.pratikpanchal22.authserver.repository.UserRepository;
+import io.github.pratikpanchal22.authserver.service.AuditService;
+import io.github.pratikpanchal22.authserver.service.LoginTrackingService;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -23,12 +25,18 @@ public class MfaAuthenticationSuccessHandler extends SimpleUrlAuthenticationSucc
     public static final String PENDING_MFA_AUTH = "PENDING_MFA_AUTHENTICATION";
 
     private final UserRepository userRepository;
+    private final LoginTrackingService loginTrackingService;
+    private final AuditService auditService;
     private final HttpSessionSecurityContextRepository contextRepository =
             new HttpSessionSecurityContextRepository();
 
-    public MfaAuthenticationSuccessHandler(UserRepository userRepository) {
+    public MfaAuthenticationSuccessHandler(UserRepository userRepository,
+                                           LoginTrackingService loginTrackingService,
+                                           AuditService auditService) {
         super("/");
         this.userRepository = userRepository;
+        this.loginTrackingService = loginTrackingService;
+        this.auditService = auditService;
     }
 
     @Override
@@ -41,6 +49,9 @@ public class MfaAuthenticationSuccessHandler extends SimpleUrlAuthenticationSucc
                 .orElse(false);
 
         if (mfaRequired) {
+            // Password accepted — clear the failure counter, but last_login_at is set only after MFA passes
+            loginTrackingService.resetFailedAttempts(principal.getUsername());
+
             request.getSession(true).setAttribute(PENDING_MFA_AUTH, authentication);
 
             var preMfaToken = new UsernamePasswordAuthenticationToken(
@@ -54,6 +65,8 @@ public class MfaAuthenticationSuccessHandler extends SimpleUrlAuthenticationSucc
 
             response.sendRedirect(request.getContextPath() + "/mfa/challenge");
         } else {
+            loginTrackingService.recordSuccess(principal.getUsername());
+            auditService.log("LOGIN_SUCCESS", principal.getUsername(), request);
             super.onAuthenticationSuccess(request, response, authentication);
         }
     }

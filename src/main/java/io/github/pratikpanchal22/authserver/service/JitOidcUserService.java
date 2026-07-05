@@ -3,6 +3,9 @@ package io.github.pratikpanchal22.authserver.service;
 import io.github.pratikpanchal22.authserver.domain.AuthType;
 import io.github.pratikpanchal22.authserver.domain.User;
 import io.github.pratikpanchal22.authserver.repository.UserRepository;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
@@ -16,9 +19,15 @@ public class JitOidcUserService implements OAuth2UserService<OidcUserRequest, Oi
 
     private final OidcUserService delegate = new OidcUserService();
     private final UserRepository userRepository;
+    private final LoginTrackingService loginTrackingService;
+    private final AuditService auditService;
 
-    public JitOidcUserService(UserRepository userRepository) {
+    public JitOidcUserService(UserRepository userRepository,
+                              LoginTrackingService loginTrackingService,
+                              AuditService auditService) {
         this.userRepository = userRepository;
+        this.loginTrackingService = loginTrackingService;
+        this.auditService = auditService;
     }
 
     @Override
@@ -26,10 +35,22 @@ public class JitOidcUserService implements OAuth2UserService<OidcUserRequest, Oi
     public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
         OidcUser oidcUser = delegate.loadUser(userRequest);
         String email = oidcUser.getEmail();
-        if (email != null && !userRepository.existsByEmail(email)) {
-            provision(email);
+        if (email != null) {
+            if (!userRepository.existsByEmail(email)) {
+                provision(email);
+            }
+            loginTrackingService.recordSuccess(email);
+            auditService.log("FEDERATED_LOGIN", email, currentRequest());
         }
         return oidcUser;
+    }
+
+    private static HttpServletRequest currentRequest() {
+        try {
+            return ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // Package-private for unit testing without going through full OIDC flow
