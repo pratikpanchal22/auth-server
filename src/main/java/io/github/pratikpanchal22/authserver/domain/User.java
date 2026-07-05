@@ -56,6 +56,9 @@ public class User {
     @Column(name = "failed_attempts", nullable = false)
     private int failedAttempts = 0;
 
+    @Column(name = "totp_failed_attempts", nullable = false)
+    private int totpFailedAttempts = 0;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "role")

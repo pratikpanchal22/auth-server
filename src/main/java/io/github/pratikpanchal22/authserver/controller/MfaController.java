@@ -31,6 +31,7 @@ import java.util.List;
 public class MfaController {
 
     private static final String PENDING_TOTP_SECRET = "PENDING_TOTP_SECRET";
+    private static final int MAX_TOTP_ATTEMPTS = 4;
 
     private final TotpService totpService;
     private final RecoveryCodeService recoveryCodeService;
@@ -71,14 +72,29 @@ public class MfaController {
         UserDetails principal = (UserDetails) pending.getPrincipal();
         var user = userRepository.findByEmail(principal.getUsername()).orElseThrow();
 
+        // Hard lockout — requires admin to clear via /admin/users/{id}/unlock-totp
+        if (user.getTotpFailedAttempts() >= MAX_TOTP_ATTEMPTS) {
+            SecurityContextHolder.clearContext();
+            session.invalidate();
+            return "redirect:/login?error=mfa_locked";
+        }
+
         boolean valid = totpService.isValidCode(user.getTotpSecretRef(), code)
                 || recoveryCodeService.consumeRecoveryCode(user, code);
 
         if (!valid) {
+            user.setTotpFailedAttempts(user.getTotpFailedAttempts() + 1);
             auditService.log("MFA_FAILURE", principal.getUsername(), request);
+            if (user.getTotpFailedAttempts() >= MAX_TOTP_ATTEMPTS) {
+                auditService.log("MFA_LOCKOUT", principal.getUsername(), request);
+                SecurityContextHolder.clearContext();
+                session.invalidate();
+                return "redirect:/login?error=mfa_locked";
+            }
             return "redirect:/mfa/challenge?error";
         }
 
+        user.setTotpFailedAttempts(0);
         loginTrackingService.recordSuccess(principal.getUsername());
         auditService.log("MFA_SUCCESS", principal.getUsername(), request);
 
