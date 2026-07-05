@@ -58,6 +58,7 @@ class AuthorizationFlowTest {
                 .andExpect(status().is4xxClientError());
     }
 
+
     @Test
     void tokenEndpoint_withoutClientAuth_returnsUnauthorized() throws Exception {
         mockMvc.perform(post("/oauth2/token")

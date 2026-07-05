@@ -45,4 +45,37 @@ class RegisteredClientRepositoryTest {
         assertThat(client).isNotNull();
         assertThat(passwordEncoder.matches("secret", client.getClientSecret())).isTrue();
     }
+
+    @Test
+    void calibreWebClient_isSeededOnStartup() {
+        RegisteredClient client = repository.findByClientId("calibre-web");
+        assertThat(client).isNotNull();
+        assertThat(client.getAuthorizationGrantTypes())
+                .contains(AuthorizationGrantType.AUTHORIZATION_CODE, AuthorizationGrantType.REFRESH_TOKEN);
+        assertThat(client.getScopes())
+                .contains(OidcScopes.OPENID, OidcScopes.PROFILE, OidcScopes.EMAIL);
+        assertThat(passwordEncoder.matches("calibre-web-secret", client.getClientSecret())).isTrue();
+    }
+
+    @Test
+    void drawioClient_isSeededOnStartup() {
+        RegisteredClient client = repository.findByClientId("drawio");
+        assertThat(client).isNotNull();
+        assertThat(client.getAuthorizationGrantTypes())
+                .contains(AuthorizationGrantType.AUTHORIZATION_CODE, AuthorizationGrantType.REFRESH_TOKEN);
+        assertThat(client.getScopes())
+                .contains(OidcScopes.OPENID, OidcScopes.PROFILE, OidcScopes.EMAIL);
+        assertThat(passwordEncoder.matches("drawio-secret", client.getClientSecret())).isTrue();
+    }
+
+    @Test
+    void allThreeClients_haveRefreshTokenRotationEnabled() {
+        for (String clientId : new String[]{"storefront", "calibre-web", "drawio"}) {
+            RegisteredClient client = repository.findByClientId(clientId);
+            assertThat(client).as(clientId + " should be seeded").isNotNull();
+            assertThat(client.getTokenSettings().isReuseRefreshTokens())
+                    .as(clientId + " should rotate refresh tokens")
+                    .isFalse();
+        }
+    }
 }
