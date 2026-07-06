@@ -9,7 +9,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Component;
 
@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 @Component
-public class MfaAuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
+public class MfaAuthenticationSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler {
 
     public static final String PENDING_MFA_AUTH = "PENDING_MFA_AUTHENTICATION";
 
@@ -33,7 +33,7 @@ public class MfaAuthenticationSuccessHandler extends SimpleUrlAuthenticationSucc
     public MfaAuthenticationSuccessHandler(UserRepository userRepository,
                                            LoginTrackingService loginTrackingService,
                                            AuditService auditService) {
-        super("/");
+        setDefaultTargetUrl("/");
         this.userRepository = userRepository;
         this.loginTrackingService = loginTrackingService;
         this.auditService = auditService;
