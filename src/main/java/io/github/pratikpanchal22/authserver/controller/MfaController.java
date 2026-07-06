@@ -9,6 +9,9 @@ import io.github.pratikpanchal22.authserver.service.TotpService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.savedrequest.RequestCache;
+import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContext;
@@ -40,6 +43,7 @@ public class MfaController {
     private final AuditService auditService;
     private final HttpSessionSecurityContextRepository contextRepository =
             new HttpSessionSecurityContextRepository();
+    private final RequestCache requestCache = new HttpSessionRequestCache();
 
     public MfaController(TotpService totpService,
                          RecoveryCodeService recoveryCodeService,
@@ -103,6 +107,12 @@ public class MfaController {
         context.setAuthentication(pending);
         SecurityContextHolder.setContext(context);
         contextRepository.saveContext(context, request, response);
+
+        SavedRequest savedRequest = requestCache.getRequest(request, response);
+        if (savedRequest != null) {
+            requestCache.removeRequest(request, response);
+            return "redirect:" + savedRequest.getRedirectUrl();
+        }
         return "redirect:/";
     }
 
