@@ -48,6 +48,8 @@ jobs:
             --parameters 'commands=[
               "aws s3 cp ${{ env.S3_KEY }} /opt/auth-server/app.jar --region ${{ env.AWS_REGION }}",
               "chown appuser:appuser /opt/auth-server/app.jar",
+              "sed -i 's/-Dspring\\.profiles\\.active=[^ ]*/-Dspring.profiles.active=prd/' /etc/systemd/system/auth-server.service",
+              "systemctl daemon-reload",
               "systemctl restart auth-server",
               "sleep 5",
               "systemctl is-active auth-server"

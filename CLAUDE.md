@@ -6,7 +6,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ```bash
 # Run locally (PostgreSQL must be running — see RUNBOOK.md)
-mvn spring-boot:run -Dspring-boot.run.profiles=local
+mvn spring-boot:run -Dspring-boot.run.profiles=local-dev
 
 # Run fully containerised
 docker compose up --build
@@ -20,6 +20,12 @@ mvn clean package -DskipTests
 # Start PostgreSQL only (for native dev)
 docker compose up postgresql -d
 ```
+
+Profile conventions:
+- `local-dev` — laptop development (local PostgreSQL, debug logging)
+- `dev` — shared dev environment
+- `stg` — staging environment
+- `prd` — production (deployed via GitHub Actions)
 
 ## Architecture
 
@@ -53,7 +59,7 @@ See `RUNBOOK.md` for full local setup, Docker, and AWS deploy instructions.
 
 | Property | Where |
 |---|---|
-| `DB_URL`, `DB_USER`, `DB_PASSWORD` | env vars / application-prod.properties |
+| `DB_URL`, `DB_USER`, `DB_PASSWORD` | env vars / application-prd.properties |
 | `AUTH_SERVER_BASE_URL` | env var — public URL used in issuer claim |
 | `AUTH_SERVER_SIGNING_KEY_REF` | AWS Secrets Manager ARN for RSA-2048 signing key |
 | `MFA_ENCRYPTION_KEY_REF` | AWS Secrets Manager ARN for AES-GCM key |
