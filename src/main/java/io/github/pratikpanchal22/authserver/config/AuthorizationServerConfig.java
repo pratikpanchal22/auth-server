@@ -17,6 +17,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.authorization.oidc.authentication.OidcLogoutAuthenticationToken;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.util.StringUtils;
 import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
@@ -54,7 +57,19 @@ public class AuthorizationServerConfig {
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
-                .oidc(Customizer.withDefaults());
+                .oidc(oidc -> oidc
+                    .logoutEndpoint(endpoint -> endpoint
+                        .logoutResponseHandler((request, response, authentication) -> {
+                            new SecurityContextLogoutHandler().logout(request, response, authentication);
+                            String redirectUri = "/";
+                            if (authentication instanceof OidcLogoutAuthenticationToken logoutToken
+                                    && StringUtils.hasText(logoutToken.getPostLogoutRedirectUri())) {
+                                redirectUri = logoutToken.getPostLogoutRedirectUri();
+                            }
+                            response.sendRedirect(redirectUri);
+                        })
+                    )
+                );
 
         http.addFilterAfter(new ClientAccessFilter(userRepository), SecurityContextHolderFilter.class);
 
