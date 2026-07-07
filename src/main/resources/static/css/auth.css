@@ -1,6 +1,5 @@
 /*
- * nthNode auth-server user-facing pages
- * Mirrors the store-front design token system.
+ * Auth server user-facing pages
  * Layered on top of Bootstrap 5 — no utility classes removed.
  * Dark mode: responds to data-bs-theme="dark" on <html>.
  */
@@ -119,7 +118,7 @@ a:hover { color: var(--nt-blue-hover); }
   --nt-shadow-md:   0 1px 3px 0 rgba(0,0,0,.4), 0 4px 8px 3px rgba(0,0,0,.3);
 }
 
-/* Keep nthNode blue on the primary button in dark mode */
+/* Keep brand blue on the primary button in dark mode */
 [data-bs-theme="dark"] .btn-primary {
   background-color: var(--nt-blue);
   border-color:     var(--nt-blue);

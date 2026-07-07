@@ -2,13 +2,21 @@ package io.github.pratikpanchal22.authserver.service;
 
 import dev.samstevens.totp.code.DefaultCodeGenerator;
 import dev.samstevens.totp.time.SystemTimeProvider;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TotpServiceTest {
 
-    private final TotpService service = new TotpService();
+    private TotpService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new TotpService();
+        ReflectionTestUtils.setField(service, "issuer", "Auth Server");
+    }
 
     @Test
     void generateSecret_returnsNonBlankBase32String() {
@@ -28,7 +36,7 @@ class TotpServiceTest {
         String uri = service.generateOtpauthUri(secret, "alice@example.com");
         assertThat(uri).startsWith("otpauth://totp/");
         assertThat(uri).contains("secret=" + secret);
-        assertThat(uri).contains("issuer=nthNode");
+        assertThat(uri).contains("issuer=Auth%20Server");
     }
 
     @Test

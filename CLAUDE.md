@@ -25,7 +25,7 @@ Profile conventions:
 - `local-dev` — laptop development (local PostgreSQL, debug logging for Spring Security)
 - `dev` — shared dev environment
 - `stg` — staging environment
-- `prd` — production (deployed via GitHub Actions → S3 → SSM → systemd)
+- `prd` — production (deployed by your infrastructure from a published GitHub Release)
 
 ## Architecture
 
@@ -96,7 +96,7 @@ After MFA success, `MfaController` promotes the pending auth to a full `Security
 | Property | Where |
 |---|---|
 | `DB_URL`, `DB_USER`, `DB_PASSWORD` | env vars / application-prd.properties |
-| `AUTH_SERVER_BASE_URL` | env var — public URL used in issuer claim e.g. `https://auth.nthnode.us` |
+| `AUTH_SERVER_BASE_URL` | env var — public URL used in issuer claim e.g. `https://auth.example.com` |
 | `AUTH_SERVER_SIGNING_KEY_REF` | AWS Secrets Manager ARN for RSA-2048 signing key (planned; currently using generated ephemeral key) |
 | `MFA_ENCRYPTION_KEY_REF` | AWS Secrets Manager ARN for AES-GCM key (planned; currently storing raw Base32 secret) |
-| `storefront.base-url` | Base URL of the storefront — used in OIDC logout redirect validation |
+| `STOREFRONT_BASE_URL` | Base URL of the storefront app — used in OIDC logout redirect validation |

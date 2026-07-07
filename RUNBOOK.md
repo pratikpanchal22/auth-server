@@ -223,58 +223,104 @@ The `Dockerfile` uses a two-stage build:
 
 ## AWS Deploy
 
-### Production architecture
+### Release lifecycle
 
-```
-GitHub Actions (push to main)
-  → ./mvnw clean package -DskipTests  (builds auth-server-0.0.1-SNAPSHOT.jar)
-  → aws s3 cp target/*.jar s3://nthnode-backups/deployments/auth-server/app.jar
-  → aws ssm send-command (targets EC2 by tag Name=nthnode-app)
-      → aws s3 cp s3://.../app.jar /opt/auth-server/app.jar
-      → systemctl restart auth-server
+This project does **not** deploy to any specific infrastructure from its CI. Instead:
 
-EC2 (Amazon Linux 2023)
-  Nginx (port 443) → auth-server (port 9000, plain HTTP)
-  systemd unit: /etc/systemd/system/auth-server.service
-  JAR: /opt/auth-server/app.jar
-  Logs: journalctl -u auth-server -f
-```
+1. A maintainer tags a release: `git tag v1.2.3 && git push origin v1.2.3`
+2. The `release.yml` workflow builds and publishes:
+   - **JAR** — attached to the GitHub Release at `github.com/pratikpanchal22/auth-server/releases`
+   - **Docker image** — pushed to `ghcr.io/pratikpanchal22/auth-server:1.2.3`
+3. Your infrastructure picks up the artifact and deploys it.
 
-The deploy workflow is in `.github/workflows/deploy.yml`. It uses GitHub OIDC → AWS IAM role (`nthnode-github-actions`) — no long-lived AWS credentials.
-
-### Deploying a hotfix manually via SSM
+### Deploying from a GitHub Release (JAR on EC2 + systemd)
 
 ```bash
-# From local machine with AWS credentials
-aws ssm start-session --target <instance-id>
+VERSION=v1.2.3
 
-# On EC2
-cd /opt/auth-server
-aws s3 cp s3://nthnode-backups/deployments/auth-server/app.jar app.jar
+# Download JAR from GitHub Release (no auth required for public repo)
+curl -L -o /opt/auth-server/app.jar \
+  "https://github.com/pratikpanchal22/auth-server/releases/download/${VERSION}/auth-server-0.0.1-SNAPSHOT.jar"
+
+chown appuser:appuser /opt/auth-server/app.jar
 systemctl restart auth-server
 journalctl -u auth-server -f
 ```
 
-### Checking status
+Or automate this in your own infrastructure repository — trigger it on new releases using GitHub's `repository_dispatch` event or a `workflow_dispatch` with a `version` input.
+
+### Deploying from GHCR (Docker)
 
 ```bash
-# Via SSM
-aws ssm send-command \
-  --targets "Key=tag:Name,Values=nthnode-app" \
-  --document-name "AWS-RunShellScript" \
-  --parameters 'commands=["systemctl status auth-server", "curl -s http://localhost:9000/actuator/health"]'
+VERSION=v1.2.3
+
+docker pull ghcr.io/pratikpanchal22/auth-server:${VERSION}
+docker stop auth-server || true
+docker run -d --name auth-server \
+  -p 9000:9000 \
+  -e SPRING_PROFILES_ACTIVE=prd \
+  -e DB_URL=jdbc:postgresql://host:5432/auth_db \
+  -e DB_USER=auth_user \
+  -e DB_PASSWORD=<secret> \
+  -e AUTH_SERVER_BASE_URL=https://auth.example.com \
+  ghcr.io/pratikpanchal22/auth-server:${VERSION}
 ```
 
-### Nginx config (reference)
+### EC2 first-time setup (JAR + systemd)
 
-Nginx terminates TLS and proxies to localhost:9000. Key directives:
+**1. Install Java 21**
+```bash
+sudo dnf install -y java-21-amazon-corretto-headless   # Amazon Linux 2023
+# or: sudo apt install -y temurin-21-jre              # Ubuntu
+```
+
+**2. Create service account and directory**
+```bash
+sudo useradd -r -s /sbin/nologin appuser
+sudo mkdir -p /opt/auth-server
+sudo chown appuser:appuser /opt/auth-server
+```
+
+**3. Create systemd unit** at `/etc/systemd/system/auth-server.service`:
+```ini
+[Unit]
+Description=Auth Server
+After=network.target
+
+[Service]
+User=appuser
+WorkingDirectory=/opt/auth-server
+ExecStart=/usr/bin/java -jar /opt/auth-server/app.jar
+Environment="SPRING_PROFILES_ACTIVE=prd"
+Environment="DB_URL=jdbc:postgresql://host:5432/auth_db"
+Environment="DB_USER=auth_user"
+Environment="DB_PASSWORD=<secret>"
+Environment="AUTH_SERVER_BASE_URL=https://auth.example.com"
+Environment="STOREFRONT_BASE_URL=https://your-app.example.com"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable auth-server
+```
+
+**4. Configure Nginx** — terminate TLS and proxy to port 9000:
 ```nginx
-proxy_set_header X-Forwarded-Proto $scheme;
-proxy_set_header X-Forwarded-Host  $host;
-proxy_set_header X-Real-IP         $remote_addr;
+location / {
+    proxy_pass         http://127.0.0.1:9000;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+    proxy_set_header   X-Forwarded-Host  $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+}
 ```
 
-The app trusts these headers via `server.forward-headers-strategy=framework` in `application-prd.properties`.
+`server.forward-headers-strategy=framework` in `application-prd.properties` tells Spring to trust these headers.
 
 ---
 
@@ -282,13 +328,13 @@ The app trusts these headers via `server.forward-headers-strategy=framework` in 
 
 ### Basic health
 
-- [ ] `curl https://auth.nthnode.us/actuator/health` → `{"status":"UP"}`
-- [ ] `curl https://auth.nthnode.us/.well-known/openid-configuration` → JSON with `issuer`, `authorization_endpoint`, `end_session_endpoint`, etc.
-- [ ] `curl https://auth.nthnode.us/oauth2/jwks` → JSON with RSA public key
+- [ ] `curl https://auth.example.com/actuator/health` → `{"status":"UP"}`
+- [ ] `curl https://auth.example.com/.well-known/openid-configuration` → JSON with `issuer`, `authorization_endpoint`, `end_session_endpoint`, etc.
+- [ ] `curl https://auth.example.com/oauth2/jwks` → JSON with RSA public key
 
 ### Login flows
 
-- [ ] `https://auth.nthnode.us/login` → email-first form renders
+- [ ] `https://auth.example.com/login` → email-first form renders
 - [ ] Enter `@gmail.com` address → routes to Google OIDC (if Google IDP seeded)
 - [ ] Enter `admin@localhost` → password field revealed
 - [ ] Log in as `admin@localhost` / `changeme` → redirects to `/`
@@ -302,9 +348,9 @@ The app trusts these headers via `server.forward-headers-strategy=framework` in 
 
 ### Logout (RP-Initiated Logout)
 
-- [ ] Log into storefront at `https://nthnode.us`
-- [ ] Click Logout → browser visits `https://auth.nthnode.us/connect/logout?id_token_hint=...`
-- [ ] Auth-server clears session → redirects to `https://nthnode.us/`
+- [ ] Log into storefront at `https://your-app.example.com`
+- [ ] Click Logout → browser visits `https://auth.example.com/connect/logout?id_token_hint=...`
+- [ ] Auth-server clears session → redirects to `https://your-app.example.com/`
 - [ ] Click Sign In again → auth-server shows login form (no silent re-authentication)
 
 ### Admin UI
@@ -317,7 +363,7 @@ The app trusts these headers via `server.forward-headers-strategy=framework` in 
 
 ### OAuth2 client (storefront)
 
-- [ ] Visit `https://nthnode.us/` → redirects to auth-server (unauthenticated)
+- [ ] Visit `https://your-app.example.com/` → redirects to auth-server (unauthenticated)
 - [ ] Log in → redirected back to storefront with active session
 - [ ] Refresh page → session persists
 
@@ -376,11 +422,8 @@ docker compose up postgresql -d
 ### Auth-server in prod not starting after deploy
 
 ```bash
-# Check systemd status
-aws ssm send-command \
-  --targets "Key=tag:Name,Values=nthnode-app" \
-  --document-name "AWS-RunShellScript" \
-  --parameters 'commands=["journalctl -u auth-server -n 100 --no-pager"]'
+# Check systemd logs directly on the EC2 instance
+journalctl -u auth-server -n 100 --no-pager
 ```
 
 Common causes:

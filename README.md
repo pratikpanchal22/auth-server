@@ -1,6 +1,6 @@
-# nthNode Auth Server
+# Auth Server
 
-A self-hosted OIDC Authorization Server that acts as the single identity provider for all nthNode applications. Built with Spring Boot 3.5 and Spring Authorization Server 1.5.
+A self-hosted OIDC Authorization Server built with Spring Boot 3.5 and Spring Authorization Server 1.5. Runs as a standalone service that acts as the single identity provider for all your applications.
 
 ![Java 21](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot 3.5](https://img.shields.io/badge/Spring%20Boot-3.5.7-6DB33F?logo=spring)
@@ -25,7 +25,7 @@ Instead of each application managing its own users and login pages, every client
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                   nthNode Auth Server :9000                  │
+│                     Auth Server :9000                        │
 │                                                              │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌───────────┐  │
 │  │  Local Auth      │  │  Home Realm       │  │  Upstream │  │
@@ -40,8 +40,8 @@ Instead of each application managing its own users and login pages, every client
               │  OIDC — authorization_code + PKCE
               │  Discovery: /.well-known/openid-configuration
               │
-              ├──────────────────────►  Storefront (nthnode.us)
-              ├──────────────────────►  Calibre-Web (books.nthnode.us)
+              ├──────────────────────►  Your web app (app.example.com)
+              ├──────────────────────►  Calibre-Web (books.example.com)
               └──────────────────────►  Any OIDC-capable app
 ```
 
@@ -272,51 +272,67 @@ No database required for unit tests. Testcontainers spins up PostgreSQL for inte
 
 ---
 
-## Cloud Deployment (AWS)
+## Cloud Deployment
 
-### Architecture
+### Release lifecycle
+
+This project publishes versioned artifacts — your infrastructure decides when and how to deploy them.
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  AWS                                                     │
-│                                                          │
-│  GitHub Actions                                          │
-│    push → main                                           │
-│      │                                                   │
-│      ├─ mvnw clean package                               │
-│      ├─ aws s3 cp target/*.jar s3://bucket/app.jar       │
-│      └─ aws ssm send-command (tag: Name=nthnode-app)     │
-│              │                                           │
-│              ▼                                           │
-│  ┌───────────────────────────────────────────────────┐   │
-│  │  EC2 (Amazon Linux 2023)                          │   │
-│  │                                                   │   │
-│  │  Nginx (443 TLS) ──► auth-server (9000 HTTP)      │   │
-│  │                      systemd: auth-server.service │   │
-│  │                      JAR: /opt/auth-server/app.jar│   │
-│  └───────────────────────────────────────────────────┘   │
-│         │                                                │
-│  ┌──────┴─────┐   ┌──────────┐   ┌────────────────────┐ │
-│  │  RDS       │   │  S3      │   │  Secrets Manager   │ │
-│  │ PostgreSQL │   │  JARs    │   │  IDP secrets       │ │
-│  └────────────┘   └──────────┘   └────────────────────┘ │
-└──────────────────────────────────────────────────────────┘
+Maintainer tags a release
+  git tag v1.2.3 && git push origin v1.2.3
+          │
+          ▼
+  GitHub Actions (release.yml)
+    ├── Runs tests
+    ├── Builds JAR
+    ├── Creates GitHub Release with JAR attached
+    │     github.com/pratikpanchal22/auth-server/releases/tag/v1.2.3
+    └── Builds + pushes Docker image to GHCR
+          ghcr.io/pratikpanchal22/auth-server:1.2.3
+          ghcr.io/pratikpanchal22/auth-server:latest
+
+Your infrastructure (private repo or manual step)
+  └── Picks up v1.2.3 and deploys to your servers
 ```
 
-### GitHub Actions deploy pipeline
+No AWS credentials or deployment logic live in this repository.
 
-The workflow in `.github/workflows/deploy.yml` runs on every push to `main`:
+### Deploying the JAR (EC2 + systemd)
 
-1. Builds the JAR with `./mvnw -q clean package -DskipTests`
-2. Uploads to S3: `s3://nthnode-backups/deployments/auth-server/app.jar`
-3. Sends an SSM Run Command to the EC2 instance (targeted by tag `Name=nthnode-app`):
-   - Downloads the JAR from S3
-   - `systemctl restart auth-server`
-   - Verifies `systemctl is-active auth-server`
+```bash
+VERSION=v1.2.3
 
-Authentication uses GitHub OIDC → AWS IAM role (no long-lived credentials stored in GitHub).
+# Download from GitHub Release (public repo — no auth required)
+curl -L -o /opt/auth-server/app.jar \
+  "https://github.com/pratikpanchal22/auth-server/releases/download/${VERSION}/auth-server-0.0.1-SNAPSHOT.jar"
 
-### EC2 setup (first time)
+chown appuser:appuser /opt/auth-server/app.jar
+systemctl restart auth-server
+journalctl -u auth-server -f
+```
+
+Automate this in your own infrastructure repository — listen for new releases via GitHub's `repository_dispatch` event or a `workflow_dispatch` with a `version` input.
+
+### Deploying the Docker image
+
+```bash
+VERSION=v1.2.3
+
+docker pull ghcr.io/pratikpanchal22/auth-server:${VERSION}
+docker stop auth-server || true
+docker run -d --name auth-server \
+  -p 9000:9000 \
+  -e SPRING_PROFILES_ACTIVE=prd \
+  -e DB_URL=jdbc:postgresql://host:5432/auth_db \
+  -e DB_USER=auth_user \
+  -e DB_PASSWORD=<secret> \
+  -e AUTH_SERVER_BASE_URL=https://auth.example.com \
+  -e STOREFRONT_BASE_URL=https://your-app.example.com \
+  ghcr.io/pratikpanchal22/auth-server:${VERSION}
+```
+
+### EC2 setup (first time, JAR + systemd)
 
 **1. Install Java 21**
 ```bash
@@ -333,7 +349,7 @@ sudo chown appuser:appuser /opt/auth-server
 **3. Create the systemd unit** at `/etc/systemd/system/auth-server.service`:
 ```ini
 [Unit]
-Description=nthNode Auth Server
+Description=Auth Server
 After=network.target
 
 [Service]
@@ -399,7 +415,7 @@ curl https://auth.example.com/.well-known/openid-configuration | jq .issuer
 2. Click **New Client** and fill in:
    - **Client ID** — unique identifier (e.g. `my-app`)
    - **Client Secret** — generated securely; share with the app via an env var
-   - **Redirect URIs** — the app's OAuth2 callback URL (e.g. `https://myapp.example.com/login/oauth2/code/nthnode`)
+   - **Redirect URIs** — the app's OAuth2 callback URL (e.g. `https://myapp.example.com/login/oauth2/code/auth-server`)
    - **Scopes** — `openid profile email` (at minimum `openid`)
    - **Grant types** — `authorization_code` + `refresh_token`
 3. In your client app, point the OIDC settings at this auth server's issuer URL and use the client ID + secret.

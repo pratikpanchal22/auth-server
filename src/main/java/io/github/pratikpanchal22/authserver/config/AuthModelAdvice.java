@@ -10,8 +10,16 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 @ControllerAdvice
 public class AuthModelAdvice {
 
+    @Value("${auth.server.name:Auth Server}")
+    private String serverName;
+
     @Value("${storefront.base-url:http://localhost:8080}")
     private String storefrontUrl;
+
+    @ModelAttribute("serverName")
+    public String serverName() {
+        return serverName;
+    }
 
     @ModelAttribute("storefrontUrl")
     public String storefrontUrl() {

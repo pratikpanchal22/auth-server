@@ -10,10 +10,10 @@
 
 ## Repo layout
 
-Each client app lives in its own top-level directory, mirroring the storefront pattern:
+Each client app lives in its own top-level directory:
 
 ```
-nthNode/
+my-org/
   auth-server/      ← this repo
   store-front/
   calibre-web/      ← fork of janeczku/calibre-web
@@ -26,8 +26,8 @@ nthNode/
 
 | Client ID | Secret (dev) | Redirect URI(s) | Scopes |
 |---|---|---|---|
-| `calibre-web` | `calibre-web-secret` | `http://localhost:8083/login`, `https://books.nthnode.com/login` | openid, profile, email |
-| `drawio` | `drawio-secret` | `http://localhost:8888/`, `https://draw.nthnode.com/` | openid, profile, email |
+| `calibre-web` | `calibre-web-secret` | `http://localhost:8083/login`, `https://books.example.com/login` | openid, profile, email |
+| `drawio` | `drawio-secret` | `http://localhost:8888/`, `https://draw.example.com/` | openid, profile, email |
 
 Both use `client_secret_basic` auth, `authorization_code + refresh_token` grants, and refresh token rotation (reuseRefreshTokens=false).
 
@@ -68,7 +68,7 @@ On first visit to `http://localhost:8083`, point it at a books directory.
 **Configure OIDC** (one-time, via admin UI):
 1. **Admin → Edit Basic Configuration → Feature Configuration** → enable **Allow OAuth** → Save
 2. **Admin → OAuth Providers** → add provider:
-   - **Provider name**: `nthnode`
+   - **Provider name**: `auth-server`
    - **Client ID**: `calibre-web`
    - **Client Secret**: `calibre-web-secret`
    - **Authorization URL**: `http://localhost:9000/oauth2/authorize`
@@ -76,7 +76,7 @@ On first visit to `http://localhost:8083`, point it at a books directory.
    - **Userinfo URL**: `http://localhost:9000/userinfo`
 3. Save — note the **Redirect URI** shown. Update `ClientDataLoader.seedCalibreWeb()` if it differs from `http://localhost:8083/login`.
 
-**Verify SSO**: log out → click **nthnode** login button → redirects to Auth Server → sign in → lands back in Calibre-Web authenticated.
+**Verify SSO**: log out → click **auth-server** login button → redirects to Auth Server → sign in → lands back in Calibre-Web authenticated.
 
 ---
 
@@ -87,7 +87,7 @@ Client secrets must be rotated for production. Insert client rows via the admin 
 ### Draw.io (docker-compose on EC2)
 
 ```yaml
-DRAWIO_OIDC_ISSUER: https://auth.nthnode.com
+DRAWIO_OIDC_ISSUER: https://auth.example.com
 DRAWIO_OIDC_CLIENT_ID: drawio
 DRAWIO_OIDC_CLIENT_SECRET: ${DRAWIO_OIDC_SECRET}   # inject from EC2 env / Secrets Manager
 ```
@@ -95,9 +95,9 @@ DRAWIO_OIDC_CLIENT_SECRET: ${DRAWIO_OIDC_SECRET}   # inject from EC2 env / Secre
 ### Calibre-Web (EC2)
 
 Configure via admin UI with production values:
-- Auth URL: `https://auth.nthnode.com/oauth2/authorize`
-- Token URL: `https://auth.nthnode.com/oauth2/token`
-- Userinfo URL: `https://auth.nthnode.com/userinfo`
+- Auth URL: `https://auth.example.com/oauth2/authorize`
+- Token URL: `https://auth.example.com/oauth2/token`
+- Userinfo URL: `https://auth.example.com/userinfo`
 - Client Secret: (from AWS Secrets Manager)
 
 ---

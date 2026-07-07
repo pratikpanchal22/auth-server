@@ -1,7 +1,6 @@
 /**
- * nthNode auth-server — theme management
- * Mirrors the store-front's mechanism: localStorage key "theme",
- * data-bs-theme attribute on <html>, system-preference fallback.
+ * Auth server — theme management
+ * localStorage key "theme", data-bs-theme attribute on <html>, system-preference fallback.
  */
 (function () {
 

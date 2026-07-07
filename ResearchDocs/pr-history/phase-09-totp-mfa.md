@@ -117,7 +117,7 @@ Recovery codes are iterated on use: all `used=false` codes for the user are load
 | Method | Behaviour |
 |--------|-----------|
 | `generateSecret()` | Returns a 32-char Base32 string via `DefaultSecretGenerator` |
-| `generateOtpauthUri(secret, email)` | Builds `otpauth://totp/nthNode:email?secret=...&issuer=nthNode&...` |
+| `generateOtpauthUri(secret, email)` | Builds `otpauth://totp/AuthServer:email?secret=...&issuer=AuthServer&...` |
 | `isValidCode(secret, code)` | Validates with ±1 period (30s) tolerance via `DefaultCodeVerifier` |
 
 The `otpauth://` URI is passed to the enroll page and rendered as a QR code client-side via `qrcodejs` (CDN). No server-side image generation — no ZXing dependency needed.

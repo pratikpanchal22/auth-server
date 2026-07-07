@@ -27,6 +27,9 @@ class ProdClientDataLoader implements ApplicationRunner {
     @Value("${STOREFRONT_CLIENT_SECRET}")
     private String storefrontClientSecret;
 
+    @Value("${STOREFRONT_BASE_URL:https://your-app.example.com}")
+    private String storefrontBaseUrl;
+
     ProdClientDataLoader(RegisteredClientRepository repository, PasswordEncoder passwordEncoder) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
@@ -42,8 +45,8 @@ class ProdClientDataLoader implements ApplicationRunner {
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                .redirectUri("https://nthnode.us/login/oauth2/code/auth-server")
-                .postLogoutRedirectUri("https://nthnode.us/")
+                .redirectUri(storefrontBaseUrl + "/login/oauth2/code/auth-server")
+                .postLogoutRedirectUri(storefrontBaseUrl + "/")
                 .scope(OidcScopes.OPENID)
                 .scope(OidcScopes.PROFILE)
                 .scope(OidcScopes.EMAIL)

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign In · nthNode</title>
+    <title>Sign In · [[${serverName}]]</title>
     <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-bs-theme',t);})();</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,7 +19,7 @@
 
             <div class="text-center mb-4">
                 <h4 class="fw-semibold mb-1">Sign in</h4>
-                <p class="text-muted small mb-0">nthNode Auth Server</p>
+                <p class="text-muted small mb-0" th:text="${serverName}">Auth Server</p>
             </div>
 
             <div th:if="${param.error}" class="alert alert-danger py-2 small" role="alert">
