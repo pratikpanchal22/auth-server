@@ -1,0 +1,58 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Tag to deploy (e.g. v1.2.3). Leave blank to deploy the latest release.'
+        required: false
+        default: ''
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(gh api repos/${{ github.repository }}/releases/latest --jq '.tag_name')
+            echo "No version specified — deploying latest: $VERSION"
+          else
+            echo "Deploying requested version: $VERSION"
+          fi
+          echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download JAR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download ${{ steps.version.outputs.tag }} \
+            --repo ${{ github.repository }} \
+            --pattern "*.jar" \
+            --output app.jar
+
+      - name: Copy JAR to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: app.jar
+          target: /opt/auth-server/
+
+      - name: Restart service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sudo chown appuser:appuser /opt/auth-server/app.jar
+            sudo systemctl restart auth-server
+            sleep 5
+            sudo systemctl is-active auth-server
