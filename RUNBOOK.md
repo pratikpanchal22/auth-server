@@ -1,6 +1,6 @@
 # Auth Server — Runbook
 
-This document covers everything needed to build, run, test, and deploy the auth server from scratch. It is updated with each PR as new capabilities are added.
+This document covers everything needed to build, run, test, and deploy the auth server from scratch. It is updated as new capabilities are added.
 
 ---
 
@@ -23,15 +23,15 @@ This document covers everything needed to build, run, test, and deploy the auth 
 | Tool | Version | Install |
 |---|---|---|
 | Java | 21 | `brew install --cask temurin@21` |
-| Maven | 3.9+ | `brew install maven` |
 | Docker Desktop | Latest | https://www.docker.com/products/docker-desktop |
 | AWS CLI | v2 | `brew install awscli` (prod only) |
+
+Maven Wrapper (`./mvnw`) is included — no separate Maven install needed.
 
 Verify your setup:
 
 ```bash
 java -version      # openjdk 21.x.x
-mvn -version       # Apache Maven 3.9.x
 docker info        # must show server info — Docker Desktop must be running
 ```
 
@@ -40,27 +40,60 @@ docker info        # must show server info — Docker Desktop must be running
 ## Project Structure
 
 ```
-auth-server/                        ← repo root (this project)
+auth-server/
   src/
     main/
       java/io/github/pratikpanchal22/authserver/
         AuthServerApplication.java
+        config/
+          AuthorizationServerConfig.java    ← Spring Authorization Server (Order 1 chain)
+          SecurityConfig.java               ← App security (form login, MFA, admin) (Order 2 chain)
+          MfaAuthenticationSuccessHandler.java ← Post-password gate: routes to MFA challenge or saves request
+          AuditLogoutSuccessHandler.java    ← Audit log on logout
+          LoginFailureHandler.java          ← Audit log on login failure
+          DatabaseClientRegistrationRepository.java ← Upstream IDPs from DB
+          ClientDataLoader.java             ← Seeds storefront client row (local-dev)
+          ProdClientDataLoader.java         ← Skips seed in prod (reads from DB)
+          OidcTokenCustomizer.java          ← Adds roles/email to ID/access tokens
+          RateLimitConfig.java / RateLimitFilter.java ← Bucket4j rate limiting
+          AuthModelAdvice.java              ← Injects nav model attributes globally
+        controller/
+          LoginController.java              ← GET /login
+          HrdController.java                ← GET /hrd/lookup
+          MfaController.java                ← /mfa/challenge, /mfa/enroll, /mfa/recovery-codes
+          AccountController.java            ← /account (self-service MFA)
+          AdminController.java              ← /admin/** (user/IDP/client management)
+          HomeController.java               ← GET /
         domain/
-          AuthType.java             ← enum: LOCAL | FEDERATED
-          User.java                 ← users table
-          IdentityProvider.java     ← identity_providers table
-          MfaRecoveryCode.java      ← mfa_recovery_codes table
-          AuditEvent.java           ← audit_events table
+          User.java                         ← users table
+          IdentityProvider.java             ← identity_providers table
+          MfaRecoveryCode.java              ← mfa_recovery_codes table
+          AuditEvent.java                   ← audit_events table
+          AuthType.java                     ← enum: LOCAL | FEDERATED
         repository/
           UserRepository.java
           IdentityProviderRepository.java
           MfaRecoveryCodeRepository.java
           AuditEventRepository.java
+        security/
+          ClientAccessFilter.java           ← Per-user client access control (Order 1 chain)
+          MfaEnrollmentFilter.java          ← Enforces MFA enrollment when mfa_required=true
+        service/
+          JitOidcUserService.java           ← JIT provisions federated users
+          TotpService.java                  ← TOTP generate/validate
+          RecoveryCodeService.java          ← BCrypt-hashed recovery codes
+          AuditService.java                 ← Async audit logging
+          LoginTrackingService.java         ← Login success/failure tracking
+          HrdService.java                   ← Home Realm Discovery logic
+          UserDetailsServiceImpl.java       ← Spring Security UserDetailsService
+          SecretsService.java               ← AWS Secrets Manager ARN resolution
+        dto/
+          UserForm.java / IdpForm.java      ← Admin form binding
       resources/
-        application.properties            ← common config (port 9000, actuator)
-        application-local.properties      ← local dev (Docker PostgreSQL + Flyway)
-        application-dev.properties        ← shared dev environment
-        application-prod.properties       ← production (all values from env vars)
+        application.properties              ← Common config (port 9000, actuator)
+        application-local-dev.properties    ← Local dev (Docker PostgreSQL, debug logging)
+        application-dev.properties          ← Shared dev environment
+        application-prd.properties          ← Production (all sensitive values from env vars)
         db/migration/
           V1__create_users.sql
           V2__create_user_roles.sql
@@ -69,46 +102,38 @@ auth-server/                        ← repo root (this project)
           V5__create_audit_events.sql
           V6__create_indexes.sql
           V7__seed_admin_user.sql           ← admin@localhost / changeme
-    test/
-      java/io/github/pratikpanchal22/authserver/
-        AuthServerApplicationTests.java     ← context loads (H2)
-        HealthEndpointTest.java             ← /actuator/health (H2)
-        repository/
-          UserRepositoryTest.java           ← Testcontainers PostgreSQL
-          IdentityProviderRepositoryTest.java
-          MfaRecoveryCodeRepositoryTest.java
-          AuditEventRepositoryTest.java
-      resources/
-        application-test.properties         ← H2 datasource, Flyway disabled
-  compose.yaml      ← PostgreSQL 15 + auth-server for local dev
-  Dockerfile        ← multi-stage build (Maven → JRE image)
-  .env.example      ← template for local secrets (copy to .env)
-  pom.xml           ← standalone Maven project (Java 21, Spring Boot 3.5.7)
+          V8__create_oauth2_registered_client.sql  ← Spring Authorization Server JDBC schema
+          V9__add_email_domains_to_identity_providers.sql
+          V10__add_user_client_access.sql   ← Per-user client access control
+          V11__add_login_tracking.sql       ← Login success/failure tracking columns
+          V12__totp_lockout_and_refresh_rotation.sql
+          V13__add_mfa_required.sql         ← Admin-enforced MFA flag
+        templates/
+          login.html                        ← Email-first HRD login form
+          mfa/challenge.html / enroll.html / recovery-codes.html
+          account.html
+          admin/                            ← Admin UI templates
+          fragments/nav.html                ← Shared navbar fragment
+  compose.yaml      ← PostgreSQL 15 for local dev
+  Dockerfile        ← Multi-stage build (Maven → JRE)
+  pom.xml
   RUNBOOK.md        ← this file
 ```
-
-This is a **standalone Maven project**. Run all `mvn` commands from this directory.
 
 ---
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` before running via Docker Compose. Never commit `.env`.
-
-```bash
-cp .env.example .env
-```
-
-| Variable | Required in | Default (local) | Description |
+| Variable | Required in | Default (local-dev) | Description |
 |---|---|---|---|
 | `DB_PASSWORD` | All | `localpassword` | PostgreSQL password |
-| `DB_URL` | Prod | — | Full JDBC URL e.g. `jdbc:postgresql://host:5432/auth_db` |
+| `DB_URL` | Prod | — | JDBC URL e.g. `jdbc:postgresql://host:5432/auth_db` |
 | `DB_USER` | Prod | — | PostgreSQL username |
-| `AUTH_SERVER_BASE_URL` | Prod | — | Public URL e.g. `https://auth.yourdomain.com` — used in OIDC issuer claim |
-| `AUTH_SERVER_SIGNING_KEY_REF` | Prod | — | AWS Secrets Manager ARN for RSA-2048 private key |
-| `MFA_ENCRYPTION_KEY_REF` | Prod | — | AWS Secrets Manager ARN for AES-GCM encryption key |
+| `AUTH_SERVER_BASE_URL` | Prod | `http://localhost:9000` | Public URL — used in OIDC issuer claim |
+| `AUTH_SERVER_SIGNING_KEY_REF` | Planned | — | AWS Secrets Manager ARN for RSA-2048 private key |
+| `MFA_ENCRYPTION_KEY_REF` | Planned | — | AWS Secrets Manager ARN for AES-GCM encryption key |
 
-> Variables marked "Prod" are not needed for local development and are wired in later PRs.
+In production, all variables are set as EC2 environment variables via the systemd unit file at `/etc/systemd/system/auth-server.service`.
 
 ---
 
@@ -116,35 +141,28 @@ cp .env.example .env
 
 The auth server runs on **port 9000**. PostgreSQL runs on 5432 (Docker).
 
-### Option A — Native app + Docker PostgreSQL (recommended for development)
-
-This is the fastest dev loop. PostgreSQL runs in Docker; the app runs natively with Spring Boot DevTools hot reload.
+### Option A — Native app + Docker PostgreSQL (recommended)
 
 **Step 1 — Start Docker Desktop**
 
 ```bash
 open -a Docker
-# Wait ~30 seconds, then verify:
-docker info
 ```
 
 **Step 2 — Start PostgreSQL**
 
 ```bash
 docker compose up postgresql -d
-
-# Verify it's healthy:
-docker compose ps
+docker compose ps   # wait until healthy
 ```
 
 **Step 3 — Run the app**
 
 ```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=local
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local-dev
 ```
 
-You should see:
-
+Expected:
 ```
 Started AuthServerApplication in X.XXX seconds
 Tomcat started on port 9000
@@ -154,204 +172,154 @@ Tomcat started on port 9000
 
 ```bash
 curl http://localhost:9000/actuator/health
-# Expected: {"status":"UP"}
+# {"status":"UP"}
 
-curl http://localhost:9000/actuator/info
-# Expected: {"app":{"name":"Auth Server","version":"0.0.1-SNAPSHOT"}}
+open http://localhost:9000/login
+# Email-first login form
 ```
 
-Flyway runs automatically on startup and applies all migrations. You can verify the schema was created:
-
-```bash
-docker exec -it $(docker compose ps -q postgresql) psql -U auth_user -d auth_db -c '\dt'
-# Expected: users, user_roles, identity_providers, mfa_recovery_codes, audit_events
-```
-
-A seed admin user is created by `V7__seed_admin_user.sql`:
+Flyway applies all V1–V13 migrations automatically. Seed admin:
 
 | Field | Value |
 |---|---|
 | Email | `admin@localhost` |
 | Password | `changeme` |
-| Roles | `ADMIN` |
+| Role | `ADMIN` |
 
-> **Change this password immediately** after first login in production.
+> Change this password in production.
 
 **Stopping**
 
 ```bash
-# Ctrl+C to stop the app
-
-docker compose down              # stop PostgreSQL, keep data volume
-docker compose down -v           # stop PostgreSQL, delete volume (fresh DB)
+docker compose down       # stop PostgreSQL, keep volume
+docker compose down -v    # stop PostgreSQL, delete volume (fresh DB)
 ```
-
----
 
 ### Option B — Fully containerised
 
 ```bash
-cp .env.example .env             # only needed once
 docker compose up --build
-```
-
-Run in background:
-
-```bash
-docker compose up --build -d
-docker compose logs -f auth-server
-```
-
-Verify:
-
-```bash
-curl http://localhost:9000/actuator/health
 ```
 
 ---
 
 ## Running Tests
 
-Unit tests run against H2 (no Docker required). Repository integration tests spin up a real PostgreSQL container via Testcontainers — Docker Desktop must be running.
-
 ```bash
-mvn test
+./mvnw test
 ```
 
-Expected output:
-
-```
-Tests run: 30, Failures: 0, Errors: 0, Skipped: 0
-BUILD SUCCESS
-```
-
-Run only the unit tests (no Docker):
-
-```bash
-mvn test -Dgroups=''
-# or just run the two unit test classes directly:
-mvn test -Dtest="AuthServerApplicationTests,HealthEndpointTest"
-```
-
-### What the tests cover
-
-| Test Class | Tests | Profile | Verifies |
-|---|---|---|---|
-| `AuthServerApplicationTests` | 1 | H2 | Spring context loads with JPA + Security |
-| `HealthEndpointTest` | 2 | H2 | `/actuator/health` returns 200 with `"UP"` |
-| `SecurityConfigTest` | 5 | H2 | Public endpoints, redirect rules, `@WithMockUser` home access |
-| `LoginIntegrationTest` | 4 | Testcontainers | Full login/logout against real DB with seed admin |
-| `UserRepositoryTest` | 7 | Testcontainers | Save, findByEmail, existsByEmail, delete, roles |
-| `IdentityProviderRepositoryTest` | 4 | Testcontainers | Save, findByName, findByEnabledTrue |
-| `MfaRecoveryCodeRepositoryTest` | 3 | Testcontainers | Save, findByUserIdAndUsedFalse, countByUserIdAndUsedFalse |
-| `AuditEventRepositoryTest` | 4 | Testcontainers | Save (with/without userId), findByUserId, findByEventType |
-
-Run a single test class:
-
-```bash
-mvn test -Dtest=UserRepositoryTest
-```
+Unit tests use H2 (no Docker needed). Repository tests use Testcontainers (Docker required).
 
 ---
 
 ## Docker
 
-### Multi-stage Dockerfile
-
 The `Dockerfile` uses a two-stage build:
-
-1. **Build stage** (`maven:3.9-eclipse-temurin-21-alpine`) — compiles inside Docker, no local Java/Maven required
-2. **Runtime stage** (`eclipse-temurin:21-jre-alpine`) — minimal JRE image (~200 MB)
-
-`docker compose up --build` works on any machine with Docker installed.
-
-### Build and run the image manually
-
-```bash
-mvn clean package -DskipTests
-docker build -t auth-server .
-docker run -p 9000:9000 -e SPRING_PROFILES_ACTIVE=local auth-server
-```
+1. **Build stage** (`maven:3.9-eclipse-temurin-21-alpine`) — compiles the JAR
+2. **Runtime stage** (`eclipse-temurin:21-jre-alpine`) — minimal JRE, ~200 MB
 
 ---
 
 ## AWS Deploy
 
-### First-time EC2 Setup
+### Production architecture
 
-**1 — Install Docker on Amazon Linux 2023**
+```
+GitHub Actions (push to main)
+  → ./mvnw clean package -DskipTests  (builds auth-server-0.0.1-SNAPSHOT.jar)
+  → aws s3 cp target/*.jar s3://nthnode-backups/deployments/auth-server/app.jar
+  → aws ssm send-command (targets EC2 by tag Name=nthnode-app)
+      → aws s3 cp s3://.../app.jar /opt/auth-server/app.jar
+      → systemctl restart auth-server
 
-```bash
-sudo dnf install -y docker
-sudo systemctl enable --now docker
-sudo usermod -aG docker ec2-user
-# Log out and back in for group change to take effect
+EC2 (Amazon Linux 2023)
+  Nginx (port 443) → auth-server (port 9000, plain HTTP)
+  systemd unit: /etc/systemd/system/auth-server.service
+  JAR: /opt/auth-server/app.jar
+  Logs: journalctl -u auth-server -f
 ```
 
-**2 — Install Docker Compose**
+The deploy workflow is in `.github/workflows/deploy.yml`. It uses GitHub OIDC → AWS IAM role (`nthnode-github-actions`) — no long-lived AWS credentials.
+
+### Deploying a hotfix manually via SSM
 
 ```bash
-sudo curl -L \
-  "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" \
-  -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
-```
+# From local machine with AWS credentials
+aws ssm start-session --target <instance-id>
 
-**3 — Clone the repo**
-
-```bash
-git clone https://github.com/pratikpanchal22/auth-server.git /opt/auth-server
+# On EC2
 cd /opt/auth-server
+aws s3 cp s3://nthnode-backups/deployments/auth-server/app.jar app.jar
+systemctl restart auth-server
+journalctl -u auth-server -f
 ```
 
-**4 — Set up environment file**
+### Checking status
 
 ```bash
-cp .env.example .env
-nano .env    # fill in DB_PASSWORD and production values
+# Via SSM
+aws ssm send-command \
+  --targets "Key=tag:Name,Values=nthnode-app" \
+  --document-name "AWS-RunShellScript" \
+  --parameters 'commands=["systemctl status auth-server", "curl -s http://localhost:9000/actuator/health"]'
 ```
 
-**5 — Start**
+### Nginx config (reference)
 
-```bash
-docker compose up --build -d
-docker compose logs -f auth-server
+Nginx terminates TLS and proxies to localhost:9000. Key directives:
+```nginx
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-Host  $host;
+proxy_set_header X-Real-IP         $remote_addr;
 ```
 
----
-
-### Deploy an Update
-
-```bash
-cd /opt/auth-server
-git pull origin main
-docker compose up --build -d
-docker compose logs -f auth-server
-curl http://localhost:9000/actuator/health
-```
-
-> Flyway migrations (added in PR-02) run automatically on startup.
-
-### ALB Subdomain Routing
-
-| Subdomain | EC2 Port |
-|---|---|
-| `auth.yourdomain.com` | 9000 |
-
-TLS termination at the ALB; the app runs HTTP internally.
+The app trusts these headers via `server.forward-headers-strategy=framework` in `application-prd.properties`.
 
 ---
 
 ## Verification Checklist
 
-- [ ] `curl http://localhost:9000/actuator/health` → `{"status":"UP"}`
-- [ ] `curl http://localhost:9000/actuator/info` → returns app name and version
-- [ ] `docker compose ps` → all containers show `healthy` or `running`
-- [ ] No `ERROR` lines in `docker compose logs auth-server`
-- [ ] `http://localhost:9000/login` → login form renders (no auth required)
-- [ ] `http://localhost:9000/` → redirects to `/login` when not authenticated
-- [ ] Log in as `admin@localhost` / `changeme` → lands on home page showing email
-- [ ] Click "Sign out" → redirects to `/login?logout` with success message
+### Basic health
+
+- [ ] `curl https://auth.nthnode.us/actuator/health` → `{"status":"UP"}`
+- [ ] `curl https://auth.nthnode.us/.well-known/openid-configuration` → JSON with `issuer`, `authorization_endpoint`, `end_session_endpoint`, etc.
+- [ ] `curl https://auth.nthnode.us/oauth2/jwks` → JSON with RSA public key
+
+### Login flows
+
+- [ ] `https://auth.nthnode.us/login` → email-first form renders
+- [ ] Enter `@gmail.com` address → routes to Google OIDC (if Google IDP seeded)
+- [ ] Enter `admin@localhost` → password field revealed
+- [ ] Log in as `admin@localhost` / `changeme` → redirects to `/`
+
+### MFA
+
+- [ ] Visit `/mfa/enroll` when logged in → QR code + manual key displayed
+- [ ] Scan with authenticator app, enter code → enrollment confirmed, recovery codes shown
+- [ ] Log out, log back in → TOTP challenge presented
+- [ ] Enter valid TOTP code → login completes
+
+### Logout (RP-Initiated Logout)
+
+- [ ] Log into storefront at `https://nthnode.us`
+- [ ] Click Logout → browser visits `https://auth.nthnode.us/connect/logout?id_token_hint=...`
+- [ ] Auth-server clears session → redirects to `https://nthnode.us/`
+- [ ] Click Sign In again → auth-server shows login form (no silent re-authentication)
+
+### Admin UI
+
+- [ ] Log in as admin → `/admin/users` lists users
+- [ ] Create/edit/disable a user
+- [ ] Require MFA for a user → after next login, user is redirected to `/mfa/enroll`
+- [ ] `/admin/identity-providers` → list and manage upstream IDPs
+- [ ] `/admin/clients` → list registered client applications
+
+### OAuth2 client (storefront)
+
+- [ ] Visit `https://nthnode.us/` → redirects to auth-server (unauthenticated)
+- [ ] Log in → redirected back to storefront with active session
+- [ ] Refresh page → session persists
 
 ---
 
@@ -360,10 +328,10 @@ TLS termination at the ALB; the app runs HTTP internally.
 ### Docker daemon not running
 
 ```
-Cannot connect to the Docker daemon at unix:///.../.docker/run/docker.sock
+Cannot connect to the Docker daemon
 ```
 
-Start Docker Desktop: `open -a Docker`, wait ~30 seconds, retry.
+Start Docker Desktop: `open -a Docker`, wait ~30 seconds.
 
 ---
 
@@ -375,21 +343,11 @@ lsof -ti:9000 | xargs kill -9
 
 ---
 
-### Port 5432 already in use
-
-```bash
-lsof -ti:5432          # find what's using it
-docker compose down    # or stop existing containers
-```
-
----
-
 ### PostgreSQL container not healthy
 
 ```bash
 docker compose logs postgresql
-# Stale volume with old credentials? Run:
-docker compose down -v && docker compose up postgresql -d
+docker compose down -v && docker compose up postgresql -d   # fresh volume
 ```
 
 ---
@@ -397,45 +355,35 @@ docker compose down -v && docker compose up postgresql -d
 ### Wrong Java version
 
 ```bash
-java -version    # confirm 21
+java -version    # must be 21
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)
-# Add to ~/.zshrc to persist
 ```
 
 ---
 
-### Build fails: package not found
+### Flyway checksum mismatch
 
-Make sure you're running `mvn` from the repo root (same directory as `pom.xml`):
-
-```bash
-pwd   # should end in /auth-server
-mvn spring-boot:run -Dspring-boot.run.profiles=local
-```
-
----
-
-### Flyway checksum mismatch on startup
-
-```
-Migration checksum mismatch for migration version X
-```
-
-This means a migration file was modified after it was applied. Never edit applied migrations — add a new one instead. To repair the local dev database (safe in development only):
+Never edit applied migrations. To reset local dev DB:
 
 ```bash
-docker compose down -v   # wipe volume → fresh DB on next start
+docker compose down -v
 docker compose up postgresql -d
-mvn spring-boot:run -Dspring-boot.run.profiles=local
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local-dev
 ```
 
 ---
 
-### Repository integration tests skipped (no Docker)
-
-If Testcontainers cannot find a Docker daemon, the integration tests are skipped (not failed) because `@Testcontainers(disabledWithoutDocker = true)` is set. Start Docker Desktop and re-run:
+### Auth-server in prod not starting after deploy
 
 ```bash
-open -a Docker
-mvn test
+# Check systemd status
+aws ssm send-command \
+  --targets "Key=tag:Name,Values=nthnode-app" \
+  --document-name "AWS-RunShellScript" \
+  --parameters 'commands=["journalctl -u auth-server -n 100 --no-pager"]'
 ```
+
+Common causes:
+- `DB_URL` / `DB_USER` / `DB_PASSWORD` env vars missing in systemd unit
+- Flyway migration error (check logs for `FlywayException`)
+- Port 9000 still bound by old process (systemd `restart` should handle this)
