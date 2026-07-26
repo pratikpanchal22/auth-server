@@ -7,6 +7,22 @@ on:
     branches: [main]
 
 jobs:
+  validate-branch:
+    name: Validate branch name
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Reject tag-like branch names
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          if echo "$BRANCH" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "ERROR: Branch name '$BRANCH' matches the semver tag pattern (v*.*.*)."
+            echo "This would cause ambiguity in the deploy workflow."
+            echo "Rename the branch to follow the feature/issue-N-description convention."
+            exit 1
+          fi
+          echo "Branch name '$BRANCH' is valid."
+
   test:
     runs-on: ubuntu-latest
 
