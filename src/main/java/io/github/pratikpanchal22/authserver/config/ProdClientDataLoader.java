@@ -30,6 +30,12 @@ class ProdClientDataLoader implements ApplicationRunner {
     @Value("${STOREFRONT_BASE_URL:https://your-app.example.com}")
     private String storefrontBaseUrl;
 
+    @Value("${SANKHYA_CLIENT_SECRET}")
+    private String sankhyaClientSecret;
+
+    @Value("${SANKHYA_BASE_URL:https://sankhya.nthnode.us}")
+    private String sankhyaBaseUrl;
+
     ProdClientDataLoader(RegisteredClientRepository repository, PasswordEncoder passwordEncoder) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
@@ -37,6 +43,11 @@ class ProdClientDataLoader implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        registerStorefront();
+        registerSankhya();
+    }
+
+    private void registerStorefront() {
         if (repository.findByClientId("storefront") != null) return;
 
         repository.save(RegisteredClient.withId(UUID.randomUUID().toString())
@@ -47,6 +58,31 @@ class ProdClientDataLoader implements ApplicationRunner {
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                 .redirectUri(storefrontBaseUrl + "/login/oauth2/code/auth-server")
                 .postLogoutRedirectUri(storefrontBaseUrl + "/")
+                .scope(OidcScopes.OPENID)
+                .scope(OidcScopes.PROFILE)
+                .scope(OidcScopes.EMAIL)
+                .clientSettings(ClientSettings.builder()
+                        .requireAuthorizationConsent(false)
+                        .build())
+                .tokenSettings(TokenSettings.builder()
+                        .accessTokenTimeToLive(Duration.ofMinutes(15))
+                        .refreshTokenTimeToLive(Duration.ofHours(8))
+                        .reuseRefreshTokens(false)
+                        .build())
+                .build());
+    }
+
+    private void registerSankhya() {
+        if (repository.findByClientId("sankhya") != null) return;
+
+        repository.save(RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId("sankhya")
+                .clientSecret(passwordEncoder.encode(sankhyaClientSecret))
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .redirectUri(sankhyaBaseUrl + "/login/oauth2/code/auth-server")
+                .postLogoutRedirectUri(sankhyaBaseUrl + "/")
                 .scope(OidcScopes.OPENID)
                 .scope(OidcScopes.PROFILE)
                 .scope(OidcScopes.EMAIL)
