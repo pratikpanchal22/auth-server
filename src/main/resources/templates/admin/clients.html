@@ -20,6 +20,11 @@
                 <div class="col">
                     <h2 class="page-title">OAuth Clients</h2>
                 </div>
+                <div class="col-auto">
+                    <a href="/admin/clients/new" class="btn btn-primary">
+                        <i class="ti ti-plus me-1"></i> New Client
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -27,9 +32,13 @@
     <div class="page-body">
         <div class="container-xl">
 
-            <div class="alert alert-info" role="alert">
-                <i class="ti ti-info-circle me-1"></i>
-                Clients are seeded by <code>ClientDataLoader</code> at startup. This view is read-only.
+            <div th:if="${success}" class="alert alert-success alert-dismissible mb-3" role="alert">
+                <span th:text="${success}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            <div th:if="${error}" class="alert alert-danger alert-dismissible mb-3" role="alert">
+                <span th:text="${error}"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
 
             <div class="card">
@@ -39,26 +48,42 @@
                             <tr>
                                 <th>Client ID</th>
                                 <th>Scopes</th>
-                                <th>Redirect URIs</th>
+                                <th>Redirect URI</th>
+                                <th>Post-logout URI</th>
                                 <th>Registered</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr th:each="c : ${clients}">
-                                <td>
-                                    <code class="fw-medium" th:text="${c.client_id}"></code>
-                                </td>
+                                <td><code class="fw-medium" th:text="${c.client_id}"></code></td>
                                 <td class="text-muted small" th:text="${c.scopes}"></td>
-                                <td>
-                                    <div th:each="uri : ${#strings.arraySplit(c.redirect_uris != null ? c.redirect_uris : '', ',')}"
-                                         class="text-muted small text-truncate" style="max-width:300px;"
-                                         th:text="${#strings.trim(uri)}" th:title="${#strings.trim(uri)}"></div>
-                                </td>
+                                <td class="text-muted small text-truncate" style="max-width:220px;"
+                                    th:text="${c.redirect_uris}" th:title="${c.redirect_uris}"></td>
+                                <td class="text-muted small text-truncate" style="max-width:180px;"
+                                    th:text="${c.post_logout_redirect_uris}" th:title="${c.post_logout_redirect_uris}"></td>
                                 <td class="text-muted small"
                                     th:text="${c.client_id_issued_at != null ? c.client_id_issued_at.toString().substring(0,10) : '—'}"></td>
+                                <td class="text-end">
+                                    <a th:href="@{/admin/clients/{id}/edit(id=${c.id})}"
+                                       class="btn btn-sm btn-ghost-secondary me-1">
+                                        <i class="ti ti-pencil"></i>
+                                    </a>
+                                    <form th:action="@{/admin/clients/{id}/delete(id=${c.id})}"
+                                          method="post" class="d-inline"
+                                          onsubmit="return confirm('Delete client ' + this.dataset.clientId + '?')"
+                                          th:data-client-id="${c.client_id}">
+                                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                        <button type="submit" class="btn btn-sm btn-ghost-danger">
+                                            <i class="ti ti-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
                             <tr th:if="${#lists.isEmpty(clients)}">
-                                <td colspan="4" class="text-center text-muted py-4">No OAuth clients found</td>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    No OAuth clients registered. <a href="/admin/clients/new">Add one.</a>
+                                </td>
                             </tr>
                         </tbody>
                     </table>

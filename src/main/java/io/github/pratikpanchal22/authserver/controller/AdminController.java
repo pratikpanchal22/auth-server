@@ -6,6 +6,7 @@ import io.github.pratikpanchal22.authserver.domain.AuditEvent;
 import io.github.pratikpanchal22.authserver.domain.AuthType;
 import io.github.pratikpanchal22.authserver.domain.IdentityProvider;
 import io.github.pratikpanchal22.authserver.domain.User;
+import io.github.pratikpanchal22.authserver.dto.ClientForm;
 import io.github.pratikpanchal22.authserver.dto.IdpForm;
 import io.github.pratikpanchal22.authserver.dto.UserForm;
 import io.github.pratikpanchal22.authserver.repository.AuditEventRepository;
@@ -16,16 +17,25 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.core.oidc.OidcScopes;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
+import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Controller
@@ -39,6 +49,7 @@ public class AdminController {
     private final JdbcTemplate jdbcTemplate;
     private final AuditEventRepository auditEventRepository;
     private final ObjectMapper objectMapper;
+    private final RegisteredClientRepository clientRepository;
 
     public AdminController(UserRepository userRepository,
                            IdentityProviderRepository idpRepository,
@@ -46,7 +57,8 @@ public class AdminController {
                            PasswordEncoder passwordEncoder,
                            JdbcTemplate jdbcTemplate,
                            AuditEventRepository auditEventRepository,
-                           ObjectMapper objectMapper) {
+                           ObjectMapper objectMapper,
+                           RegisteredClientRepository clientRepository) {
         this.userRepository = userRepository;
         this.idpRepository = idpRepository;
         this.recoveryCodeRepository = recoveryCodeRepository;
@@ -54,6 +66,7 @@ public class AdminController {
         this.jdbcTemplate = jdbcTemplate;
         this.auditEventRepository = auditEventRepository;
         this.objectMapper = objectMapper;
+        this.clientRepository = clientRepository;
     }
 
     public record AuditRow(Instant createdAt, String eventType, String email,
@@ -276,9 +289,105 @@ public class AdminController {
         return "admin/clients";
     }
 
+    @GetMapping("/clients/new")
+    public String newClient(Model model) {
+        model.addAttribute("form", new ClientForm());
+        model.addAttribute("editMode", false);
+        return "admin/client-form";
+    }
+
+    @PostMapping("/clients")
+    public String createClient(@ModelAttribute("form") ClientForm form, RedirectAttributes ra) {
+        if (clientRepository.findByClientId(form.getClientId()) != null) {
+            ra.addFlashAttribute("error", "Client ID already exists: " + form.getClientId());
+            return "redirect:/admin/clients/new";
+        }
+        clientRepository.save(buildClient(UUID.randomUUID().toString(), form, null));
+        ra.addFlashAttribute("success", "Client \"" + form.getClientId() + "\" created");
+        return "redirect:/admin/clients";
+    }
+
+    @GetMapping("/clients/{id}/edit")
+    public String editClient(@PathVariable String id, Model model) {
+        RegisteredClient client = clientRepository.findById(id);
+        if (client == null) return "redirect:/admin/clients";
+
+        ClientForm form = new ClientForm();
+        form.setClientId(client.getClientId());
+        form.setRedirectUri(client.getRedirectUris().stream().findFirst().orElse(""));
+        form.setPostLogoutRedirectUri(client.getPostLogoutRedirectUris().stream().findFirst().orElse(""));
+        form.setScopes(new HashSet<>(client.getScopes()));
+        form.setAccessTokenTtlMinutes((int) client.getTokenSettings().getAccessTokenTimeToLive().toMinutes());
+        form.setRefreshTokenTtlHours((int) client.getTokenSettings().getRefreshTokenTimeToLive().toHours());
+        form.setRequireConsent(client.getClientSettings().isRequireAuthorizationConsent());
+
+        model.addAttribute("form", form);
+        model.addAttribute("clientInternalId", id);
+        model.addAttribute("editMode", true);
+        return "admin/client-form";
+    }
+
+    @PostMapping("/clients/{id}")
+    public String updateClient(@PathVariable String id,
+                               @ModelAttribute("form") ClientForm form,
+                               RedirectAttributes ra) {
+        RegisteredClient existing = clientRepository.findById(id);
+        if (existing == null) return "redirect:/admin/clients";
+
+        // Preserve secret if not provided
+        String secret = (form.getClientSecret() != null && !form.getClientSecret().isBlank())
+                ? passwordEncoder.encode(form.getClientSecret())
+                : existing.getClientSecret();
+
+        clientRepository.save(buildClient(id, form, secret));
+        ra.addFlashAttribute("success", "Client \"" + form.getClientId() + "\" updated");
+        return "redirect:/admin/clients";
+    }
+
+    @PostMapping("/clients/{id}/delete")
+    public String deleteClient(@PathVariable String id, RedirectAttributes ra) {
+        RegisteredClient client = clientRepository.findById(id);
+        if (client != null) {
+            jdbcTemplate.update("DELETE FROM oauth2_registered_client WHERE id = ?", id);
+            ra.addFlashAttribute("success", "Client \"" + client.getClientId() + "\" deleted");
+        }
+        return "redirect:/admin/clients";
+    }
+
+    private RegisteredClient buildClient(String id, ClientForm form, String encodedSecret) {
+        String secret = encodedSecret != null
+                ? encodedSecret
+                : passwordEncoder.encode(form.getClientSecret());
+
+        RegisteredClient.Builder builder = RegisteredClient.withId(id)
+                .clientId(form.getClientId())
+                .clientSecret(secret)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .clientSettings(ClientSettings.builder()
+                        .requireAuthorizationConsent(form.isRequireConsent())
+                        .build())
+                .tokenSettings(TokenSettings.builder()
+                        .accessTokenTimeToLive(Duration.ofMinutes(form.getAccessTokenTtlMinutes()))
+                        .refreshTokenTimeToLive(Duration.ofHours(form.getRefreshTokenTtlHours()))
+                        .reuseRefreshTokens(false)
+                        .build());
+
+        if (form.getRedirectUri() != null && !form.getRedirectUri().isBlank())
+            builder.redirectUri(form.getRedirectUri());
+        if (form.getPostLogoutRedirectUri() != null && !form.getPostLogoutRedirectUri().isBlank())
+            builder.postLogoutRedirectUri(form.getPostLogoutRedirectUri());
+
+        Set<String> scopes = form.getScopes() != null ? form.getScopes() : Set.of(OidcScopes.OPENID);
+        scopes.forEach(builder::scope);
+
+        return builder.build();
+    }
+
     private List<Map<String, Object>> registeredClients() {
         return jdbcTemplate.queryForList(
-                "SELECT client_id, scopes, redirect_uris, client_id_issued_at " +
+                "SELECT id, client_id, scopes, redirect_uris, post_logout_redirect_uris, client_id_issued_at " +
                 "FROM oauth2_registered_client ORDER BY client_id");
     }
 
