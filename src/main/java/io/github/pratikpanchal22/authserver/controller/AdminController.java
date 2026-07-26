@@ -27,8 +27,11 @@ import org.springframework.security.oauth2.server.authorization.settings.TokenSe
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import jakarta.validation.Valid;
 
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -299,10 +302,16 @@ public class AdminController {
     }
 
     @PostMapping("/clients")
-    public String createClient(@ModelAttribute("form") ClientForm form, RedirectAttributes ra) {
+    public String createClient(@Valid @ModelAttribute("form") ClientForm form,
+                               BindingResult br, Model model, RedirectAttributes ra) {
+        if (br.hasErrors()) {
+            model.addAttribute("editMode", false);
+            return "admin/client-form";
+        }
         if (clientRepository.findByClientId(form.getClientId()) != null) {
-            ra.addFlashAttribute("error", "Client ID already exists: " + form.getClientId());
-            return "redirect:/admin/clients/new";
+            br.rejectValue("clientId", "duplicate", "Client ID already exists: " + form.getClientId());
+            model.addAttribute("editMode", false);
+            return "admin/client-form";
         }
         String plainSecret = generateSecret();
         clientRepository.save(buildClient(UUID.randomUUID().toString(), form, passwordEncoder.encode(plainSecret)));
@@ -324,11 +333,16 @@ public class AdminController {
 
     @PostMapping("/clients/{id}")
     public String updateClient(@PathVariable String id,
-                               @ModelAttribute("form") ClientForm form,
-                               RedirectAttributes ra) {
+                               @Valid @ModelAttribute("form") ClientForm form,
+                               BindingResult br, Model model, RedirectAttributes ra) {
         RegisteredClient existing = clientRepository.findById(id);
         if (existing == null) return "redirect:/admin/clients";
 
+        if (br.hasErrors()) {
+            model.addAttribute("clientInternalId", id);
+            model.addAttribute("editMode", true);
+            return "admin/client-form";
+        }
         clientRepository.save(buildClient(id, form, existing.getClientSecret()));
         ra.addFlashAttribute("success", "Client \"" + form.getClientId() + "\" updated");
         return "redirect:/admin/clients";
