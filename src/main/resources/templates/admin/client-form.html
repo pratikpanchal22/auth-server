@@ -52,17 +52,27 @@
                                     <div th:if="${editMode}" class="form-hint">Client ID cannot be changed after creation.</div>
                                 </div>
 
-                                <div class="mb-3">
-                                    <label for="clientSecret" class="form-label">
-                                        Client Secret
-                                        <span th:if="${editMode}" class="text-muted fw-normal">(leave blank to keep existing)</span>
-                                    </label>
-                                    <input type="password" class="form-control" id="clientSecret" name="clientSecret"
-                                           th:required="${!editMode}" autocomplete="new-password">
-                                    <div th:if="${!editMode}" class="form-hint text-warning">
-                                        <i class="ti ti-alert-triangle me-1"></i>
-                                        Save this secret now — it cannot be retrieved after creation.
+                                <div th:if="${!editMode}" class="mb-3">
+                                    <div class="alert alert-info mb-0">
+                                        <i class="ti ti-info-circle me-1"></i>
+                                        A secure client secret will be generated automatically and shown <strong>once</strong> after creation.
                                     </div>
+                                </div>
+
+                                <div th:if="${editMode}" class="mb-3">
+                                    <label class="form-label">Client Secret</label>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="text-muted small">••••••••••••••••</span>
+                                        <form th:action="@{/admin/clients/{id}/rotate-secret(id=${clientInternalId})}"
+                                              method="post" class="d-inline"
+                                              onsubmit="return confirm('Rotate secret for this client? Any applications using the current secret will stop working immediately.')">
+                                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                            <button type="submit" class="btn btn-sm btn-ghost-warning">
+                                                <i class="ti ti-refresh me-1"></i> Rotate Secret
+                                            </button>
+                                        </form>
+                                    </div>
+                                    <div class="form-hint">Rotating invalidates the current secret immediately.</div>
                                 </div>
 
                                 <div class="mb-3">

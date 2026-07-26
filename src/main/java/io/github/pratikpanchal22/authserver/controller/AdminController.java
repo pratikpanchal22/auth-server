@@ -30,8 +30,10 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -302,8 +304,10 @@ public class AdminController {
             ra.addFlashAttribute("error", "Client ID already exists: " + form.getClientId());
             return "redirect:/admin/clients/new";
         }
-        clientRepository.save(buildClient(UUID.randomUUID().toString(), form, null));
-        ra.addFlashAttribute("success", "Client \"" + form.getClientId() + "\" created");
+        String plainSecret = generateSecret();
+        clientRepository.save(buildClient(UUID.randomUUID().toString(), form, passwordEncoder.encode(plainSecret)));
+        ra.addFlashAttribute("newClientId", form.getClientId());
+        ra.addFlashAttribute("newClientSecret", plainSecret);
         return "redirect:/admin/clients";
     }
 
@@ -312,16 +316,7 @@ public class AdminController {
         RegisteredClient client = clientRepository.findById(id);
         if (client == null) return "redirect:/admin/clients";
 
-        ClientForm form = new ClientForm();
-        form.setClientId(client.getClientId());
-        form.setRedirectUri(client.getRedirectUris().stream().findFirst().orElse(""));
-        form.setPostLogoutRedirectUri(client.getPostLogoutRedirectUris().stream().findFirst().orElse(""));
-        form.setScopes(new HashSet<>(client.getScopes()));
-        form.setAccessTokenTtlMinutes((int) client.getTokenSettings().getAccessTokenTimeToLive().toMinutes());
-        form.setRefreshTokenTtlHours((int) client.getTokenSettings().getRefreshTokenTimeToLive().toHours());
-        form.setRequireConsent(client.getClientSettings().isRequireAuthorizationConsent());
-
-        model.addAttribute("form", form);
+        model.addAttribute("form", formFromClient(client));
         model.addAttribute("clientInternalId", id);
         model.addAttribute("editMode", true);
         return "admin/client-form";
@@ -334,13 +329,21 @@ public class AdminController {
         RegisteredClient existing = clientRepository.findById(id);
         if (existing == null) return "redirect:/admin/clients";
 
-        // Preserve secret if not provided
-        String secret = (form.getClientSecret() != null && !form.getClientSecret().isBlank())
-                ? passwordEncoder.encode(form.getClientSecret())
-                : existing.getClientSecret();
-
-        clientRepository.save(buildClient(id, form, secret));
+        clientRepository.save(buildClient(id, form, existing.getClientSecret()));
         ra.addFlashAttribute("success", "Client \"" + form.getClientId() + "\" updated");
+        return "redirect:/admin/clients";
+    }
+
+    @PostMapping("/clients/{id}/rotate-secret")
+    public String rotateSecret(@PathVariable String id, RedirectAttributes ra) {
+        RegisteredClient existing = clientRepository.findById(id);
+        if (existing == null) return "redirect:/admin/clients";
+
+        String plainSecret = generateSecret();
+        ClientForm form = formFromClient(existing);
+        clientRepository.save(buildClient(id, form, passwordEncoder.encode(plainSecret)));
+        ra.addFlashAttribute("rotatedClientId", existing.getClientId());
+        ra.addFlashAttribute("newClientSecret", plainSecret);
         return "redirect:/admin/clients";
     }
 
@@ -354,14 +357,28 @@ public class AdminController {
         return "redirect:/admin/clients";
     }
 
-    private RegisteredClient buildClient(String id, ClientForm form, String encodedSecret) {
-        String secret = encodedSecret != null
-                ? encodedSecret
-                : passwordEncoder.encode(form.getClientSecret());
+    private String generateSecret() {
+        byte[] bytes = new byte[32];
+        new SecureRandom().nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
 
+    private ClientForm formFromClient(RegisteredClient client) {
+        ClientForm form = new ClientForm();
+        form.setClientId(client.getClientId());
+        form.setRedirectUri(client.getRedirectUris().stream().findFirst().orElse(""));
+        form.setPostLogoutRedirectUri(client.getPostLogoutRedirectUris().stream().findFirst().orElse(""));
+        form.setScopes(new HashSet<>(client.getScopes()));
+        form.setAccessTokenTtlMinutes((int) client.getTokenSettings().getAccessTokenTimeToLive().toMinutes());
+        form.setRefreshTokenTtlHours((int) client.getTokenSettings().getRefreshTokenTimeToLive().toHours());
+        form.setRequireConsent(client.getClientSettings().isRequireAuthorizationConsent());
+        return form;
+    }
+
+    private RegisteredClient buildClient(String id, ClientForm form, String encodedSecret) {
         RegisteredClient.Builder builder = RegisteredClient.withId(id)
                 .clientId(form.getClientId())
-                .clientSecret(secret)
+                .clientSecret(encodedSecret)
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)

@@ -41,6 +41,28 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
 
+            <!-- Shown once after client creation -->
+            <div th:if="${newClientSecret}" class="alert alert-warning mb-3" role="alert">
+                <div class="d-flex align-items-start gap-2">
+                    <i class="ti ti-alert-triangle mt-1 flex-shrink-0"></i>
+                    <div class="w-100">
+                        <div class="fw-semibold mb-1">
+                            <span th:if="${newClientId}">Client <code th:text="${newClientId}"></code> created — </span>
+                            <span th:if="${rotatedClientId}">Secret rotated for <code th:text="${rotatedClientId}"></code> — </span>
+                            copy this secret now. It will not be shown again.
+                        </div>
+                        <div class="input-group">
+                            <input type="text" class="form-control font-monospace" id="secretValue"
+                                   th:value="${newClientSecret}" readonly>
+                            <button class="btn btn-outline-secondary" type="button"
+                                    onclick="navigator.clipboard.writeText(document.getElementById('secretValue').value)">
+                                <i class="ti ti-copy"></i> Copy
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="table-responsive">
                     <table class="table table-vcenter card-table">
