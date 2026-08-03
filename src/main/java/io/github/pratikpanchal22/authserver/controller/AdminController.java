@@ -4,12 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.pratikpanchal22.authserver.domain.AuditEvent;
 import io.github.pratikpanchal22.authserver.domain.AuthType;
+import io.github.pratikpanchal22.authserver.domain.ClientUiMetadata;
 import io.github.pratikpanchal22.authserver.domain.IdentityProvider;
 import io.github.pratikpanchal22.authserver.domain.User;
 import io.github.pratikpanchal22.authserver.dto.ClientForm;
 import io.github.pratikpanchal22.authserver.dto.IdpForm;
 import io.github.pratikpanchal22.authserver.dto.UserForm;
 import io.github.pratikpanchal22.authserver.repository.AuditEventRepository;
+import io.github.pratikpanchal22.authserver.repository.ClientUiMetadataRepository;
 import io.github.pratikpanchal22.authserver.repository.IdentityProviderRepository;
 import io.github.pratikpanchal22.authserver.repository.MfaRecoveryCodeRepository;
 import io.github.pratikpanchal22.authserver.repository.UserRepository;
@@ -55,6 +57,7 @@ public class AdminController {
     private final AuditEventRepository auditEventRepository;
     private final ObjectMapper objectMapper;
     private final RegisteredClientRepository clientRepository;
+    private final ClientUiMetadataRepository clientUiMetadataRepository;
 
     public AdminController(UserRepository userRepository,
                            IdentityProviderRepository idpRepository,
@@ -63,7 +66,8 @@ public class AdminController {
                            JdbcTemplate jdbcTemplate,
                            AuditEventRepository auditEventRepository,
                            ObjectMapper objectMapper,
-                           RegisteredClientRepository clientRepository) {
+                           RegisteredClientRepository clientRepository,
+                           ClientUiMetadataRepository clientUiMetadataRepository) {
         this.userRepository = userRepository;
         this.idpRepository = idpRepository;
         this.recoveryCodeRepository = recoveryCodeRepository;
@@ -72,6 +76,7 @@ public class AdminController {
         this.auditEventRepository = auditEventRepository;
         this.objectMapper = objectMapper;
         this.clientRepository = clientRepository;
+        this.clientUiMetadataRepository = clientUiMetadataRepository;
     }
 
     public record AuditRow(Instant createdAt, String eventType, String email,
@@ -315,6 +320,7 @@ public class AdminController {
         }
         String plainSecret = generateSecret();
         clientRepository.save(buildClient(UUID.randomUUID().toString(), form, passwordEncoder.encode(plainSecret)));
+        saveUiMetadata(form);
         ra.addFlashAttribute("newClientId", form.getClientId());
         ra.addFlashAttribute("newClientSecret", plainSecret);
         return "redirect:/admin/clients";
@@ -344,6 +350,7 @@ public class AdminController {
             return "admin/client-form";
         }
         clientRepository.save(buildClient(id, form, existing.getClientSecret()));
+        saveUiMetadata(form);
         ra.addFlashAttribute("success", "Client \"" + form.getClientId() + "\" updated");
         return "redirect:/admin/clients";
     }
@@ -386,7 +393,29 @@ public class AdminController {
         form.setAccessTokenTtlMinutes((int) client.getTokenSettings().getAccessTokenTimeToLive().toMinutes());
         form.setRefreshTokenTtlHours((int) client.getTokenSettings().getRefreshTokenTimeToLive().toHours());
         form.setRequireConsent(client.getClientSettings().isRequireAuthorizationConsent());
+        clientUiMetadataRepository.findByClientId(client.getClientId()).ifPresent(meta -> {
+            form.setDisplayName(meta.getDisplayName());
+            form.setDescription(meta.getDescription());
+            form.setLaunchUrl(meta.getLaunchUrl());
+            form.setIcon(meta.getIcon());
+            form.setVisible(meta.isVisible());
+        });
         return form;
+    }
+
+    private void saveUiMetadata(ClientForm form) {
+        if (form.getLaunchUrl() == null || form.getLaunchUrl().isBlank()) return;
+        ClientUiMetadata meta = clientUiMetadataRepository
+                .findByClientId(form.getClientId())
+                .orElseGet(ClientUiMetadata::new);
+        meta.setClientId(form.getClientId());
+        meta.setDisplayName(form.getDisplayName() != null && !form.getDisplayName().isBlank()
+                ? form.getDisplayName() : form.getClientId());
+        meta.setDescription(blankToNull(form.getDescription()));
+        meta.setLaunchUrl(form.getLaunchUrl());
+        meta.setIcon(form.getIcon() != null && !form.getIcon().isBlank() ? form.getIcon() : "apps");
+        meta.setVisible(form.isVisible());
+        clientUiMetadataRepository.save(meta);
     }
 
     private RegisteredClient buildClient(String id, ClientForm form, String encodedSecret) {

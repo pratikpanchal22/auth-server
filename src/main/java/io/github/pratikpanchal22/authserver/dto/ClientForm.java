@@ -30,6 +30,13 @@ public class ClientForm {
 
     private boolean requireConsent = false;
 
+    // App Portal metadata — stored in client_ui_metadata, optional
+    private String displayName;
+    private String description;
+    private String launchUrl;
+    private String icon = "apps";
+    private boolean visible = false;
+
     public String getClientId() { return clientId; }
     public void setClientId(String clientId) { this.clientId = clientId; }
 
@@ -50,4 +57,19 @@ public class ClientForm {
 
     public boolean isRequireConsent() { return requireConsent; }
     public void setRequireConsent(boolean requireConsent) { this.requireConsent = requireConsent; }
+
+    public String getDisplayName() { return displayName; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public String getLaunchUrl() { return launchUrl; }
+    public void setLaunchUrl(String launchUrl) { this.launchUrl = launchUrl; }
+
+    public String getIcon() { return icon; }
+    public void setIcon(String icon) { this.icon = icon; }
+
+    public boolean isVisible() { return visible; }
+    public void setVisible(boolean visible) { this.visible = visible; }
 }

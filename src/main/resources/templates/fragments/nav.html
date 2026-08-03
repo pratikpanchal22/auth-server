@@ -8,6 +8,7 @@
             <span th:text="${serverName}">Auth Server</span>
         </a>
         <div class="d-flex align-items-center gap-3">
+            <a th:href="@{/apps}" class="text-muted small text-decoration-none">Apps</a>
             <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin}"
                class="btn btn-sm" style="background:var(--nt-blue,#1a73e8);color:#fff;border-radius:24px;">
                 Admin
